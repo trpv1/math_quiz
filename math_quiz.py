@@ -179,7 +179,7 @@ def make_problem():
             {
                 "q": "I prefer tea ( ) coffee.\n（私はコーヒーより紅茶のほうが好きだ）",
                 "correct": "to",
-                "choices": ["with", "over", "than", "to"]
+                "choices": ["with", "on", "than", "to"]
             },
             {
                 "q": "He succeeded ( ) passing the exam.\n（彼は試験に合格することに成功した）",
