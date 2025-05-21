@@ -26,11 +26,11 @@ spreadsheet = client.open("ScoreBoard")
 # quiz_type に応じてワークシート（タブ）を使い分け
 if st.session_state.quiz_type == "sqrt":
     # インデックスで取得（0 が最初のシート、1 が2番目…）
-    sheet = spreadsheet.get_worksheet(0)    # Sheet1
-elif st.session_state.quiz_type == "eng":
     sheet = spreadsheet.get_worksheet(1)    # Sheet2
+elif st.session_state.quiz_type == "eng":
+    sheet = spreadsheet.get_worksheet(2)    # Sheet3
 else:
-    sheet = spreadsheet.get_worksheet(2)    # さらに別のタブ（必要なら）
+    sheet = spreadsheet.get_worksheet(3)    # さらに別のタブ（必要なら）
 
 # あるいはシート名で取得する場合
 # sheet = spreadsheet.worksheet("平方根")    # タブ名が「平方根」の場合
