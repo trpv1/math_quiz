@@ -94,12 +94,12 @@ def top3():
 
 # --- クラス選択 ---
 if "class_selected" not in st.session_state:
-    st.title("ユーザーネームを選択してください")
+    st.title("所属を選択してください")
 
     def select_class(cls):
         st.session_state.class_selected = cls
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.button("3R1", on_click=select_class, args=("3R1",))
     with c2:
@@ -108,6 +108,8 @@ if "class_selected" not in st.session_state:
         st.button("3R3", on_click=select_class, args=("3R3",))
     with c4:
         st.button("講師", on_click=select_class, args=("講師",))
+    with c5:
+        st.button("その他", on_click=select_class, args=("その他",))
 
     st.stop()
 
