@@ -104,10 +104,7 @@ def make_problem():
                 return a, correct, choices
 
     elif st.session_state.quiz_type == "eng":
-        import random
-
-def get_quiz():
-    quizzes = [
+        quizzes = [
         # 1
         {
             "q": "I got sleepy ( ) the meeting.\n（会議の間に眠くなった）",
