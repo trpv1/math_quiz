@@ -188,7 +188,7 @@ if not st.session_state.played_name:
 
 # ③ ニックネーム未設定なら入力画面
 if st.session_state.nickname == "":
-    st.title("平方根 1分クイズ")
+    st.title("1分間クイズ")
     # テキスト入力（nick_input キーで保存）
     st.text_input("ニックネームを入力してください", key="nick_input", max_chars=12)
     # 決定ボタンは on_click コールバックで nickname をセット
