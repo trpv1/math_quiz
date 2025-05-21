@@ -3,16 +3,25 @@ import random, math, time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# === クイズ種別選択 ===
+# --- クイズ種別選択 ---
+def select_quiz(qtype):
+    st.session_state.quiz_type = qtype
+
 if "quiz_type" not in st.session_state:
     st.title("クイズを選んでください")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("平方根クイズ"):
-            st.session_state.quiz_type = "sqrt"
+        st.button(
+            "平方根クイズ",
+            on_click=select_quiz,
+            args=("sqrt",)
+        )
     with c2:
-        if st.button("中３英語クイズ"):
-            st.session_state.quiz_type = "eng"
+        st.button(
+            "中３英語クイズ",
+            on_click=select_quiz,
+            args=("eng",)
+        )
     st.stop()
     
 # === Google Sheets 連携 ===
