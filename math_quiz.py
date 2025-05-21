@@ -206,6 +206,71 @@ def make_problem():
                 "correct": "into",
                 "choices": ["into", "in", "to", "by"]
             },
+            {
+                "q": "I want to ( ) you about the plan.\n（その計画についてあなたと話したい）",
+                "correct": "talk to",
+                "choices": ["talk", "talk to", "tell", "say"]
+            },
+            {
+                "q": "She always speaks ( ) her grandfather kindly.\n（彼女はいつも優しく祖父に話しかける）",
+                "correct": "to",
+                "choices": ["with", "to", "at", "for"]
+            },
+            {
+                "q": "Please ( ) me the truth.\n（私に真実を話してください）",
+                "correct": "tell",
+                "choices": ["tell", "tell to", "tell with", "say"]
+            },
+            {
+                "q": "My birthday is ( ) May 3rd.\n（私の誕生日は5月3日です）",
+                "correct": "on",
+                "choices": ["in", "at", "on", "by"]
+            },
+            {
+                "q": "The meeting starts ( ) 3 p.m.\n（会議は午後3時に始まる）",
+                "correct": "at",
+                "choices": ["on", "in", "at", "by"]
+            },
+            {
+                "q": "School is closed ( ) Sundays.\n（学校は日曜日は休みです）",
+                "correct": "on",
+                "choices": ["in", "on", "at", "for"]
+            },
+            {
+                "q": "He will finish the work ( ) two hours.\n（彼は2時間後にその仕事を終えるだろう）",
+                "correct": "in",
+                "choices": ["for", "after", "in", "during"]
+            },
+            {
+                "q": "Wine is made ( ) grapes.\n（ワインはブドウから作られる）",
+                "correct": "from",
+                "choices": ["of", "from", "in", "by"]
+            },
+            {
+                "q": "This table is made ( ) wood.\n（このテーブルは木で作られている）",
+                "correct": "of",
+                "choices": ["of", "from", "in", "with"]
+            },
+            {
+                "q": "These watches are made ( ) Switzerland.\n（これらの時計はスイス製だ）",
+                "correct": "in",
+                "choices": ["of", "from", "by", "in"]
+            },
+            {
+                "q": "I went to school ( ) bus.\n（私はバスで学校へ行った）",
+                "correct": "by",
+                "choices": ["in", "by", "with", "on"]
+            },
+            {
+                "q": "She wrote the letter ( ) English.\n（彼女はその手紙を英語で書いた）",
+                "correct": "in",
+                "choices": ["at", "with", "by", "in"]
+            },
+            {
+                "q": "He cut the paper ( ) scissors.\n（彼ははさみで紙を切った）",
+                "correct": "with",
+                "choices": ["by", "in", "with", "through"]
+            },
         ]
         quiz = random.choice(quizzes)
         random.shuffle(quiz["choices"])
