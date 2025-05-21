@@ -271,6 +271,11 @@ def make_problem():
                 "correct": "with",
                 "choices": ["by", "in", "with", "through"]
             },
+            {
+                "q": "It's a piece of ( ).\n（朝飯前だ）",
+                "correct": "cake",
+                "choices": ["cake", "pizza", "steak", "sushi"]
+            },
         ]
         quiz = random.choice(quizzes)
         random.shuffle(quiz["choices"])
@@ -374,7 +379,7 @@ if not st.session_state.started:
         quiz_label = "中3英語クイズ"
 
     st.title(f"{st.session_state.nickname} さんの{quiz_label}")
-    st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点、10択で挑戦！")
+    st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点")
 
     def start_quiz():
         play_sound(START_URL)
