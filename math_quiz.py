@@ -222,15 +222,42 @@ if not st.session_state.started:
 
 
 # === タイマー表示 ===
-remaining = max(0, 60 - int(time.time() - st.session_state.start_time))
-mm, ss = divmod(remaining, 60)
+remaining = max(0, 10 - int(time.time() - st.session_state.start_time))
+mm, ss = divmod(remaining, 10)
 st.markdown(f"## ⏱️ {st.session_state.nickname} さんのタイムアタック！")
 st.info(f"残り {mm}:{ss:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
 # === タイムアップ＆ランキング ===
-# （ここは変更不要）
+if remaining == 0:
+    st.warning("⏰ タイムアップ！")
+    st.write(f"最終スコア: {st.session_state.score}点 ({st.session_state.total}問)")
+    if not st.session_state.saved:
+        # 1️⃣ フルネームを生成して保存
+        full_name = f"{st.session_state.class_selected}_{st.session_state.nickname}"
+        save_score(full_name, st.session_state.score)
 
+        st.session_state.saved = True
+        # 2️⃣ ランキング上位かどうか判定
+        ranking = top3()
+        names = [r["name"] for r in ranking]
+        if full_name in names:
+            play_sound(RESULT1_URL)
+        else:
+            play_sound(RESULT2_URL)
+        st.balloons()
+    st.write("### 🏆 歴代ランキング（上位3名）")
+    for i, r in enumerate(top3(), 1):
+        st.write(f"{i}. {r['name']} — {r['score']}点")
+    def restart_all():
+        # セッションを完全クリア
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        # スクリプトを最初から再実行
+        st.rerun()
 
+    st.button("🔁 もう一度挑戦", on_click=restart_all)
+    st.stop()
+    
 # === 問題表示 ===
 # make_problem() が返すのは (question, correct, choices)
 q, correct, choices = st.session_state.current_problem
