@@ -155,6 +155,56 @@ def make_problem():
                 "correct": "until",
                 "choices": ["by", "since", "until", "for"]
             },
+            {
+                "q": "He walked ( ) the bridge.\n（彼は橋を渡って歩いた）",
+                "correct": "across",
+                "choices": ["along", "through", "across", "over"]
+            },
+            {
+                "q": "The cat jumped ( ) the wall.\n（その猫は塀を飛び越えた）",
+                "correct": "over",
+                "choices": ["above", "over", "across", "onto"]
+            },
+            {
+                "q": "She is good ( ) mathematics.\n（彼女は数学が得意だ）",
+                "correct": "at",
+                "choices": ["at", "in", "on", "about"]
+            },
+         　 {
+                "q": "Tom is absent ( ) school today.\n（トムは今日学校を欠席している）",
+                "correct": "from",
+                "choices": ["from", "of", "in", "at"]
+            },
+            {
+                "q": "I prefer tea ( ) coffee.\n（私はコーヒーより紅茶のほうが好きだ）",
+                "correct": "to",
+                "choices": ["with", "over", "than", "to"]
+            },
+            {
+                "q": "He succeeded ( ) passing the exam.\n（彼は試験に合格することに成功した）",
+                "correct": "in",
+                "choices": ["in", "at", "on", "with"]
+            },
+            {
+                "q": "The train runs ( ) Tokyo and Osaka.\n（その列車は東京と大阪の間を走っている）",
+                "correct": "between",
+                "choices": ["among", "to", "between", "through"]
+            },
+            {
+                "q": "The book was written ( ) Shakespeare.\n（その本はシェイクスピアによって書かれた）",
+                "correct": "by",
+                "choices": ["from", "of", "with", "by"]
+            },
+            {
+                "q": "Let’s meet ( ) noon.\n（正午に会いましょう）",
+                "correct": "at",
+                "choices": ["on", "in", "by", "at"]
+            },
+            {
+                "q": "He divided the cake ( ) four pieces.\n（彼はケーキを4つに分けた）",
+                "correct": "into",
+                "choices": ["into", "in", "to", "by"]
+            },
         ]
         quiz = random.choice(quizzes)
         random.shuffle(quiz["choices"])
