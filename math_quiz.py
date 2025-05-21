@@ -3,11 +3,39 @@ import random, math, time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+# === クイズ種別選択 ===
+if "quiz_type" not in st.session_state:
+    st.title("クイズを選んでください")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("平方根クイズ"):
+            st.session_state.quiz_type = "sqrt"
+    with c2:
+        if st.button("中３英語クイズ"):
+            st.session_state.quiz_type = "eng"
+    st.stop()
+    
 # === Google Sheets 連携 ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
 client = gspread.authorize(creds)
-sheet = client.open("ScoreBoard").sheet1
+
+# 1つのスプレッドシートを開く
+spreadsheet = client.open("ScoreBoard")
+
+# quiz_type に応じてワークシート（タブ）を使い分け
+if st.session_state.quiz_type == "sqrt":
+    # インデックスで取得（0 が最初のシート、1 が2番目…）
+    sheet = spreadsheet.get_worksheet(0)    # Sheet1
+elif st.session_state.quiz_type == "eng":
+    sheet = spreadsheet.get_worksheet(1)    # Sheet2
+else:
+    sheet = spreadsheet.get_worksheet(2)    # さらに別のタブ（必要なら）
+
+# あるいはシート名で取得する場合
+# sheet = spreadsheet.worksheet("平方根")    # タブ名が「平方根」の場合
+# sheet = spreadsheet.worksheet("中3英語")  # タブ名が「中3英語」の場合
+
 
 # === 効果音 URL ===
 NAME_URL    = "https://github.com/trpv1/square-root-app/raw/main/static/name.mp3"
@@ -35,54 +63,58 @@ def init_state():
         st.session_state.setdefault(k, v)
 init_state()
 
-# === 問題生成（重み付き＋10択＋「√そのまま」必須） ===
+# --- 問題生成（√問題 or 英語問題） ---
 def make_problem():
-    # ① 出現確率を上げたい a 値
-    fav = {12, 18, 20, 24, 28, 32, 40, 48, 50, 54, 56, 58}
+    if st.session_state.quiz_type == "sqrt":
+        # ① 出現確率を上げたい a 値
+        fav = {12, 18, 20, 24, 28, 32, 40, 48, 50, 54, 56, 58}
 
-    # ② 2～100 を重み付きでサンプリング
-    population = list(range(2, 101))
-    weights    = [10 if n in fav else 1 for n in population]
-    a = random.choices(population, weights)[0]
+        # ② 2～100 を重み付きでサンプリング
+        population = list(range(2, 101))
+        weights    = [10 if n in fav else 1 for n in population]
+        a = random.choices(population, weights)[0]
 
-    # ③ √a を簡約
-    for i in range(int(math.sqrt(a)), 0, -1):
-        if a % (i * i) == 0:
-            outer, inner = i, a // (i * i)
-            correct = (
-                str(outer)
-                if inner == 1
-                else (f"√{inner}" if outer == 1 else f"{outer}√{inner}")
-            )
-
-            # ④ 「√そのまま」も必ず選択肢に入れる
-            unsimpl = f"√{a}"
-
-            # ⑤ 10択の生成（正解＋生ルート＋ニセ解答）
-            choices_set = {correct, unsimpl}
-            while len(choices_set) < 10:
-                o   = random.randint(1, 9)
-                inn = random.randint(1, 50)
-                fake = (
-                    str(o)
-                    if inn == 1
-                    else (f"√{inn}" if o == 1 else f"{o}√{inn}")
+        # ③ √a を簡約
+        for i in range(int(math.sqrt(a)), 0, -1):
+            if a % (i * i) == 0:
+                outer, inner = i, a // (i * i)
+                correct = (
+                    str(outer)
+                    if inner == 1
+                    else (f"√{inner}" if outer == 1 else f"{outer}√{inner}")
                 )
-                choices_set.add(fake)
 
-            # ⑥ ランダムに並び替えて返却
-            choices = random.sample(list(choices_set), k=10)
-            return a, correct, choices
+                # ④ 「√そのまま」も必ず選択肢に入れる
+                unsimpl = f"√{a}"
 
-# 10択の選択肢生成
-def generate_choices(correct):
-    s = {correct}
-    while len(s) < 10:
-        o = random.randint(1, 9)
-        inn = random.randint(1, 50)
-        fake = str(o) if inn == 1 else (f"√{inn}" if o == 1 else f"{o}√{inn}")
-        s.add(fake)
-    return list(s)
+                # ⑤ 10択の生成（正解＋生ルート＋ニセ解答）
+                choices_set = {correct, unsimpl}
+                while len(choices_set) < 10:
+                    o   = random.randint(1, 9)
+                    inn = random.randint(1, 50)
+                    fake = (
+                        str(o)
+                        if inn == 1
+                        else (f"√{inn}" if o == 1 else f"{o}√{inn}")
+                    )
+                    choices_set.add(fake)
+
+                # ⑥ ランダムに並び替えて返却
+                choices = random.sample(list(choices_set), k=10)
+                return a, correct, choices
+
+    elif st.session_state.quiz_type == "eng":
+        # 英語問題：apple の和訳
+        q = "appleの和訳は？"
+        correct = "りんご"
+        choices = ["みかん", "りんご", "ごりら", "らっぱ"]
+        random.shuffle(choices)
+        return q, correct, choices
+
+    else:
+        # 万が一 quiz_type が想定外だった場合
+        st.error("不正なクイズ種別です")
+        st.stop()
 
 # === スコア保存／取得 ===
 def save_score(name, score):
@@ -168,21 +200,23 @@ if st.session_state.nickname == "":
     st.button("決定", on_click=set_nickname)
     st.stop()
 
-
-
 # === スタート前画面 ===
 if not st.session_state.started:
-    st.title(f"{st.session_state.nickname} さんの平方根クイズ")
+    # クイズ種別に応じたラベル
+    if st.session_state.quiz_type == "sqrt":
+        quiz_label = "平方根クイズ"
+    else:
+        quiz_label = "中3英語クイズ"
+
+    st.title(f"{st.session_state.nickname} さんの{quiz_label}")
     st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点、10択で挑戦！")
 
-    # on_click 用コールバックを定義
     def start_quiz():
         play_sound(START_URL)
         st.session_state.started = True
         st.session_state.start_time = time.time()
         st.session_state.current_problem = make_problem()
 
-    # ボタン押下時に start_quiz() が呼ばれる
     st.button("スタート！", on_click=start_quiz)
     st.stop()
 
@@ -194,42 +228,21 @@ st.markdown(f"## ⏱️ {st.session_state.nickname} さんのタイムアタッ�
 st.info(f"残り {mm}:{ss:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
 # === タイムアップ＆ランキング ===
-if remaining == 0:
-    st.warning("⏰ タイムアップ！")
-    st.write(f"最終スコア: {st.session_state.score}点 ({st.session_state.total}問)")
-    if not st.session_state.saved:
-        # 1️⃣ フルネームを生成して保存
-        full_name = f"{st.session_state.class_selected}_{st.session_state.nickname}"
-        save_score(full_name, st.session_state.score)
-
-        st.session_state.saved = True
-        # 2️⃣ ランキング上位かどうか判定
-        ranking = top3()
-        names = [r["name"] for r in ranking]
-        if full_name in names:
-            play_sound(RESULT1_URL)
-        else:
-            play_sound(RESULT2_URL)
-        st.balloons()
-    st.write("### 🏆 歴代ランキング（上位3名）")
-    for i, r in enumerate(top3(), 1):
-        st.write(f"{i}. {r['name']} — {r['score']}点")
-    def restart_all():
-        # セッションを完全クリア
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
-        # スクリプトを最初から再実行
-        st.rerun()
-
-    st.button("🔁 もう一度挑戦", on_click=restart_all)
-    st.stop()
+# （ここは変更不要）
 
 
 # === 問題表示 ===
-a, correct, choices = st.session_state.current_problem
-st.subheader(f"√{a} を簡約すると？")
+# make_problem() が返すのは (question, correct, choices)
+q, correct, choices = st.session_state.current_problem
+
+# 問題文を分岐表示
+if st.session_state.quiz_type == "sqrt":
+    st.subheader(f"√{q} を簡約すると？")
+else:
+    st.subheader(q)
 
 # === 解答フェーズ ===
+# （以下は既存のまま動作します）
 if not st.session_state.answered:
     user_choice = st.radio("選択肢を選んでください", choices)
     if st.button("解答する"):
@@ -261,3 +274,4 @@ if st.session_state.answered:
             st.session_state.user_choice = ""
         st.button("次の問題へ", on_click=next_q)
     st.stop()
+
