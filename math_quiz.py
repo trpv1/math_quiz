@@ -322,8 +322,8 @@ if not st.session_state.started:
 
 
 # === タイマー表示 ===
-remaining = max(0, 10 - int(time.time() - st.session_state.start_time))
-mm, ss = divmod(remaining, 10)
+remaining = max(0, 60 - int(time.time() - st.session_state.start_time))
+mm, ss = divmod(remaining, 60)
 st.markdown(f"## ⏱️ {st.session_state.nickname} さんのタイムアタック！")
 st.info(f"残り {mm}:{ss:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
