@@ -65,16 +65,13 @@ init_state()
 
 # --- 問題生成（√問題 or 英語問題） ---
 def make_problem():
+    # √問題
     if st.session_state.quiz_type == "sqrt":
-        # ① 出現確率を上げたい a 値
         fav = {12, 18, 20, 24, 28, 32, 40, 48, 50, 54, 56, 58}
-
-        # ② 2～100 を重み付きでサンプリング
         population = list(range(2, 101))
-        weights    = [10 if n in fav else 1 for n in population]
+        weights = [10 if n in fav else 1 for n in population]
         a = random.choices(population, weights)[0]
 
-        # ③ √a を簡約
         for i in range(int(math.sqrt(a)), 0, -1):
             if a % (i * i) == 0:
                 outer, inner = i, a // (i * i)
@@ -83,14 +80,10 @@ def make_problem():
                     if inner == 1
                     else (f"√{inner}" if outer == 1 else f"{outer}√{inner}")
                 )
-
-                # ④ 「√そのまま」も必ず選択肢に入れる
                 unsimpl = f"√{a}"
-
-                # ⑤ 10択の生成（正解＋生ルート＋ニセ解答）
                 choices_set = {correct, unsimpl}
                 while len(choices_set) < 10:
-                    o   = random.randint(1, 9)
+                    o = random.randint(1, 9)
                     inn = random.randint(1, 50)
                     fake = (
                         str(o)
@@ -98,120 +91,119 @@ def make_problem():
                         else (f"√{inn}" if o == 1 else f"{o}√{inn}")
                     )
                     choices_set.add(fake)
-
-                # ⑥ ランダムに並び替えて返却
                 choices = random.sample(list(choices_set), k=10)
                 return a, correct, choices
 
+    # 英語問題
     elif st.session_state.quiz_type == "eng":
         quizzes = [
-        {
-            "q": "I got sleepy ( ) the meeting.\n（会議の間に眠くなった）",
-            "correct": "during",
-            "choices": ["for", "while", "during", "since"]
-        },
-        {
-            "q": "We stayed in Kyoto ( ) five days.\n（私たちは5日間京都に滞在した）",
-            "correct": "for",
-            "choices": ["during", "while", "for", "within"]
-        },
-        {
-            "q": "He was cooking ( ) I was watching TV.\n（彼が料理している間、私はテレビを見ていた）",
-            "correct": "while",
-            "choices": ["during", "while", "for", "by"]
-        },
-        {
-            "q": "Please finish the report ( ) Friday.\n（金曜日までにレポートを終えてください）",
-            "correct": "by",
-            "choices": ["until", "during", "by", "for"]
-        },
-        {
-            "q": "I’ve lived here ( ) 2010.\n（2010年からずっとここに住んでいます）",
-            "correct": "since",
-            "choices": ["from", "for", "since", "at"]
-        },
-        {
-            "q": "The shop is open ( ) 9 a.m. to 7 p.m.\n（その店は午前9時から午後7時まで開いている）",
-            "correct": "from",
-            "choices": ["since", "at", "within", "from"]
-        },
-        {
-            "q": "She arrived ( ) the airport at noon.\n（彼女は正午に空港に到着した）",
-            "correct": "at",
-            "choices": ["on", "in", "at", "by"]
-        },
-        {
-            "q": "The train will arrive ( ) an hour.\n（電車は1時間以内に到着するでしょう）",
-            "correct": "within",
-            "choices": ["for", "during", "in", "within"]
-        },
-        {
-            "q": "He didn’t sleep ( ) the movie.\n（彼は映画の間、眠らなかった）",
-            "correct": "during",
-            "choices": ["for", "while", "within", "during"]
-        },
-        {
-            "q": "Let’s wait here ( ) the rain stops.\n（雨が止むまでここで待とう）",
-            "correct": "until",
-            "choices": ["by", "since", "until", "for"]
-        },
-        {
-            "q": "He walked ( ) the bridge.\n（彼は橋を渡って歩いた）",
-            "correct": "across",
-            "choices": ["along", "through", "across", "over"]
-        },
-        {
-            "q": "The cat jumped ( ) the wall.\n（その猫は塀を飛び越えた）",
-            "correct": "over",
-            "choices": ["above", "over", "across", "onto"]
-        },
-        {
-            "q": "She is good ( ) mathematics.\n（彼女は数学が得意だ）",
-            "correct": "at",
-            "choices": ["at", "in", "on", "about"]
-        },
-        {
-            "q": "Tom is absent ( ) school today.\n（トムは今日学校を欠席している）",
-            "correct": "from",
-            "choices": ["from", "of", "in", "at"]
-        },
-        {
-            "q": "I prefer tea ( ) coffee.\n（私はコーヒーより紅茶のほうが好きだ）",
-            "correct": "to",
-            "choices": ["with", "over", "than", "to"]
-        },
-        {
-            "q": "He succeeded ( ) passing the exam.\n（彼は試験に合格することに成功した）",
-            "correct": "in",
-            "choices": ["in", "at", "on", "with"]
-        },
-        {
-            "q": "The train runs ( ) Tokyo and Osaka.\n（その列車は東京と大阪の間を走っている）",
-            "correct": "between",
-            "choices": ["among", "to", "between", "through"]
-        },
-        {
-            "q": "The book was written ( ) Shakespeare.\n（その本はシェイクスピアによって書かれた）",
-            "correct": "by",
-            "choices": ["from", "of", "with", "by"]
-        },
-        {
-            "q": "Let’s meet ( ) noon.\n（正午に会いましょう）",
-            "correct": "at",
-            "choices": ["on", "in", "by", "at"]
-        },
-        {
-            "q": "He divided the cake ( ) four pieces.\n（彼はケーキを4つに分けた）",
-            "correct": "into",
-            "choices": ["into", "in", "to", "by"]
-        },
-    ]
-    quiz = random.choice(quizzes)
-    random.shuffle(quiz["choices"])
-    return quiz["q"], quiz["correct"], quiz["choices"]
+            {
+                "q": "I got sleepy ( ) the meeting.\n（会議の間に眠くなった）",
+                "correct": "during",
+                "choices": ["for", "while", "during", "since"]
+            },
+            {
+                "q": "We stayed in Kyoto ( ) five days.\n（私たちは5日間京都に滞在した）",
+                "correct": "for",
+                "choices": ["during", "while", "for", "within"]
+            },
+            {
+                "q": "He was cooking ( ) I was watching TV.\n（彼が料理している間、私はテレビを見ていた）",
+                "correct": "while",
+                "choices": ["during", "while", "for", "by"]
+            },
+            {
+                "q": "Please finish the report ( ) Friday.\n（金曜日までにレポートを終えてください）",
+                "correct": "by",
+                "choices": ["until", "during", "by", "for"]
+            },
+            {
+                "q": "I’ve lived here ( ) 2010.\n（2010年からずっとここに住んでいます）",
+                "correct": "since",
+                "choices": ["from", "for", "since", "at"]
+            },
+            {
+                "q": "The shop is open ( ) 9 a.m. to 7 p.m.\n（その店は午前9時から午後7時まで開いている）",
+                "correct": "from",
+                "choices": ["since", "at", "within", "from"]
+            },
+            {
+                "q": "She arrived ( ) the airport at noon.\n（彼女は正午に空港に到着した）",
+                "correct": "at",
+                "choices": ["on", "in", "at", "by"]
+            },
+            {
+                "q": "The train will arrive ( ) an hour.\n（電車は1時間以内に到着するでしょう）",
+                "correct": "within",
+                "choices": ["for", "during", "in", "within"]
+            },
+            {
+                "q": "He didn’t sleep ( ) the movie.\n（彼は映画の間、眠らなかった）",
+                "correct": "during",
+                "choices": ["for", "while", "within", "during"]
+            },
+            {
+                "q": "Let’s wait here ( ) the rain stops.\n（雨が止むまでここで待とう）",
+                "correct": "until",
+                "choices": ["by", "since", "until", "for"]
+            },
+            {
+                "q": "He walked ( ) the bridge.\n（彼は橋を渡って歩いた）",
+                "correct": "across",
+                "choices": ["along", "through", "across", "over"]
+            },
+            {
+                "q": "The cat jumped ( ) the wall.\n（その猫は塀を飛び越えた）",
+                "correct": "over",
+                "choices": ["above", "over", "across", "onto"]
+            },
+            {
+                "q": "She is good ( ) mathematics.\n（彼女は数学が得意だ）",
+                "correct": "at",
+                "choices": ["at", "in", "on", "about"]
+            },
+            {
+                "q": "Tom is absent ( ) school today.\n（トムは今日学校を欠席している）",
+                "correct": "from",
+                "choices": ["from", "of", "in", "at"]
+            },
+            {
+                "q": "I prefer tea ( ) coffee.\n（私はコーヒーより紅茶のほうが好きだ）",
+                "correct": "to",
+                "choices": ["with", "over", "than", "to"]
+            },
+            {
+                "q": "He succeeded ( ) passing the exam.\n（彼は試験に合格することに成功した）",
+                "correct": "in",
+                "choices": ["in", "at", "on", "with"]
+            },
+            {
+                "q": "The train runs ( ) Tokyo and Osaka.\n（その列車は東京と大阪の間を走っている）",
+                "correct": "between",
+                "choices": ["among", "to", "between", "through"]
+            },
+            {
+                "q": "The book was written ( ) Shakespeare.\n（その本はシェイクスピアによって書かれた）",
+                "correct": "by",
+                "choices": ["from", "of", "with", "by"]
+            },
+            {
+                "q": "Let’s meet ( ) noon.\n（正午に会いましょう）",
+                "correct": "at",
+                "choices": ["on", "in", "by", "at"]
+            },
+            {
+                "q": "He divided the cake ( ) four pieces.\n（彼はケーキを4つに分けた）",
+                "correct": "into",
+                "choices": ["into", "in", "to", "by"]
+            },
+        ]
+        quiz = random.choice(quizzes)
+        random.shuffle(quiz["choices"])
+        return quiz["q"], quiz["correct"], quiz["choices"]
 
+    # 万が一 quiz_type が想定外だった場合
     else:
-        # 万が一 quiz_type が想定外だった場合
         st.error("不正なクイズ種別です")
         st.stop()
 
