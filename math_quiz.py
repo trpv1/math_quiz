@@ -623,11 +623,11 @@ if st.session_state.answered:
     with result_box.container():
         if st.session_state.is_correct:
             st.success("🎉 正解！ +1点")
-        else:
-            # --- 不正解メッセージでも確定した correct_answer_string を使用 ---
-            st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
-        def next_q():
-            result_box.empty()
+        else:
+            # --- 不正解メッセージでも確定した correct_answer_string を使用 ---
+            st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
+        def next_q():
+            result_box.empty()
             st.session_state.current_problem = make_problem()
             st.session_state.answered = False
             st.session_state.is_correct = None
