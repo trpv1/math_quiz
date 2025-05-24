@@ -444,37 +444,37 @@ if not st.session_state.started:
     st.title(f"{st.session_state.nickname} さんの{quiz_label}")
     st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点")
 
-    def start_quiz():
-        play_sound(START_URL)
-        st.session_state.started = True
-        st.session_state.start_time = time.time()
-        
-        st.session_state.score = 0
-        st.session_state.total = 0
-        st.session_state.answered = False
-        st.session_state.is_correct = None
-        st.session_state.user_choice = ""
-        st.session_state.saved = False
+    def start_quiz(): # <--- この行のインデントを確認・修正
+        play_sound(START_URL)
+        st.session_state.started = True
+        st.session_state.start_time = time.time()
+        
+        st.session_state.score = 0
+        st.session_state.total = 0
+        st.session_state.answered = False
+        st.session_state.is_correct = None
+        st.session_state.user_choice = ""
+        st.session_state.saved = False
 
-        if st.session_state.quiz_type == "eng":
-            st.session_state.asked_eng_indices_this_session = []
-            st.session_state.incorrectly_answered_eng_questions = []
-            
-        st.session_state.current_problem = make_problem()
+        if st.session_state.quiz_type == "eng":
+            st.session_state.asked_eng_indices_this_session = []
+            st.session_state.incorrectly_answered_eng_questions = []
+            
+        st.session_state.current_problem = make_problem()
 
-        # --- 追加：問題の表示用選択肢を準備 ---
-        if st.session_state.current_problem is None:
-            st.session_state.current_problem_display_choices = []
-        elif st.session_state.quiz_type == "eng":
-            eng_problem_data = st.session_state.current_problem
-            shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
-            st.session_state.current_problem_display_choices = shuffled_choices
-        elif st.session_state.quiz_type == "sqrt":
-            _, _, sqrt_choices = st.session_state.current_problem
-            st.session_state.current_problem_display_choices = sqrt_choices
+        # --- 追加：問題の表示用選択肢を準備 ---
+        if st.session_state.current_problem is None:
+            st.session_state.current_problem_display_choices = []
+        elif st.session_state.quiz_type == "eng":
+            eng_problem_data = st.session_state.current_problem
+            shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
+            st.session_state.current_problem_display_choices = shuffled_choices
+        elif st.session_state.quiz_type == "sqrt":
+            _, _, sqrt_choices = st.session_state.current_problem
+            st.session_state.current_problem_display_choices = sqrt_choices
 
-    st.button("スタート！", on_click=start_quiz)
-    st.stop()
+    st.button("スタート！", on_click=start_quiz)
+    st.stop()
 
 # === タイマー表示 ===
 remaining = max(0, 60 - int(time.time() - st.session_state.start_time))
