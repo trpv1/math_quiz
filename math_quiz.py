@@ -270,19 +270,19 @@ def play_sound(url: str):
 
 # === セッション初期化 ===
 def init_state():
-    defaults = dict(
-        nickname="", started=False, start_time=None,
-        score=0, total=0, current_problem=None,
-        answered=False, is_correct=None, user_choice="",
-        saved=False, played_name=False,
-        asked_eng_indices_this_session=[],
-        incorrectly_answered_eng_questions=[],
-        # --- 追加：現在の問題で表示するためのシャッフル済み選択肢 ---
-        current_problem_display_choices=[],
-        # --- 追加ここまで ---
-    )
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
+    defaults = dict(
+        nickname="", started=False, start_time=None,
+        score=0, total=0, current_problem=None,
+        answered=False, is_correct=None, user_choice="",
+        saved=False, played_name=False,
+        asked_eng_indices_this_session=[],
+        incorrectly_answered_eng_questions=[],
+        # --- 追加：現在の問題で表示するためのシャッフル済み選択肢 ---
+        current_problem_display_choices=[],
+        # --- 追加ここまで ---
+    )
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 init_state()
 
 # --- 問題生成（√問題 or 英語問題） ---
