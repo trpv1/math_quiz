@@ -600,21 +600,22 @@ if problem_data and not st.session_state.answered: # problem_dataが存在する
         
 # --- 正解判定にはここで確定した correct_answer_string を使用 ---
     if user_choice == correct_answer_string:
-            st.session_state.score += 1
-            st.session_state.is_correct = True
-            play_sound(CORRECT_URL)
-        else:
-            st.session_state.score -= 1
-            st.session_state.is_correct = False
-            play_sound(WRONG_URL)
-            if st.session_state.quiz_type == "eng":
-                current_q_data = st.session_state.current_problem
-                st.session_state.incorrectly_answered_eng_questions.append({
-                    "question_text": current_q_data["q"],
-                    "user_answer": user_choice,
-                    "correct_answer": correct_answer_string, # ここも確定した正解を使用
-                    "explanation": current_q_data["explanation"]
-                })
+        st.session_state.score += 1
+        st.session_state.is_correct = True
+        play_sound(CORRECT_URL)
+    else:
+        st.session_state.score -= 1
+        st.session_state.is_correct = False
+        play_sound(WRONG_URL)
+        
+    if st.session_state.quiz_type == "eng":
+        current_q_data = st.session_state.current_problem
+        st.session_state.incorrectly_answered_eng_questions.append({
+            "question_text": current_q_data["q"],
+            "user_answer": user_choice,
+            "correct_answer": correct_answer_string, # ここも確定した正解を使用
+            "explanation": current_q_data["explanation"]
+        })
 
 # === 結果表示 ===
 result_box = st.empty()
