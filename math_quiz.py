@@ -490,7 +490,12 @@ if st.session_state.get("start_time") is not None:
 remaining = max(0, 60 - elapsed_time)
 
 st.markdown(f"## ⏱️ {st.session_state.nickname} さんのタイムアタック！")
-st.info(f"残り {mm}:{ss:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}") # mm, ss はこのスコープでは未定義の可能性あり
+
+# mm, ss (または mm_display, ss_display) をここで計算
+mm_display, ss_display = divmod(remaining, 60)
+
+# 修正後の st.info 行
+st.info(f"残り {mm_display:02d}:{ss_display:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
 # mm, ss をここで再計算
 mm_display, ss_display = divmod(remaining, 60)
