@@ -588,7 +588,7 @@ choices_for_radio = st.session_state.current_problem_display_choices
 
 # === 解答フェーズ ===
 if problem_data and not st.session_state.answered: # problem_dataが存在することも確認
-   user_choice = st.radio(
+    user_choice = st.radio(
         "選択肢を選んでください", 
         choices_for_radio, 
         key=f"choice_{st.session_state.total}_{st.session_state.quiz_type}" # キーをよりユニークに
