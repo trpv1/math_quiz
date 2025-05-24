@@ -565,7 +565,7 @@ problem_data = st.session_state.current_problem
 
 if problem_data is None and st.session_state.quiz_type == "eng":
 # ... (変更なし、この部分は問題が尽きた場合の処理として正しい) ...
-    st.stop()
+    st.stop()
 
 # --- 問題文と正解の文字列をここで確定 ---
 question_text_to_display = ""
