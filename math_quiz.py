@@ -497,11 +497,6 @@ mm_display, ss_display = divmod(remaining, 60)
 # 修正後の st.info 行
 st.info(f"残り {mm_display:02d}:{ss_display:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
-# mm, ss をここで再計算
-mm_display, ss_display = divmod(remaining, 60)
-st.info(f"残り {mm_display:02d}:{ss_display:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
-
-
 if remaining == 0: # --- タイムアップ処理 ---
     if not st.session_state.get("time_up_processed", False): # タイムアップ処理を一度だけ実行するフラグ
         st.warning("⏰ タイムアップ！")
