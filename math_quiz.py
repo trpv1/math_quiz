@@ -624,25 +624,25 @@ if st.session_state.answered:
         if st.session_state.is_correct:
             st.success("🎉 正解！ +1点")
         else:
-            # --- 不正解メッセージでも確定した correct_answer_string を使用 ---
+# --- 不正解メッセージでも確定した correct_answer_string を使用 ---
             st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
         def next_q():
             result_box.empty()
-            st.session_state.current_problem = make_problem()
-            st.session_state.answered = False
-            st.session_state.is_correct = None
-            st.session_state.user_choice = ""
-
-            # --- 追加：次の問題の表示用選択肢を準備 ---
-            if st.session_state.current_problem is None:
-                st.session_state.current_problem_display_choices = []
-            elif st.session_state.quiz_type == "eng":
-                eng_problem_data = st.session_state.current_problem
-                shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
-                st.session_state.current_problem_display_choices = shuffled_choices
-            elif st.session_state.quiz_type == "sqrt":
-                _, _, sqrt_choices = st.session_state.current_problem
-                st.session_state.current_problem_display_choices = sqrt_choices
-            
-        st.button("次の問題へ", on_click=next_q)
-    st.stop()
+            st.session_state.current_problem = make_problem()
+            st.session_state.answered = False
+            st.session_state.is_correct = None
+            st.session_state.user_choice = ""
+            
+# --- 追加：次の問題の表示用選択肢を準備 ---
+if st.session_state.current_problem is None:
+    st.session_state.current_problem_display_choices = []
+elif st.session_state.quiz_type == "eng":
+    eng_problem_data = st.session_state.current_problem
+    shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
+    st.session_state.current_problem_display_choices = shuffled_choices
+elif st.session_state.quiz_type == "sqrt":
+    _, _, sqrt_choices = st.session_state.current_problem
+    st.session_state.current_problem_display_choices = sqrt_choices
+    
+    st.button("次の問題へ", on_click=next_q)
+    st.stop()
