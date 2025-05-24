@@ -620,9 +620,9 @@ if problem_data and not st.session_state.answered: # problem_dataが存在する
 # === 結果表示 ===
 result_box = st.empty()
 if st.session_state.answered:
-    with result_box.container():
-        if st.session_state.is_correct:
-            st.success("🎉 正解！ +1点")
+    with result_box.container():
+        if st.session_state.is_correct:
+            st.success("🎉 正解！ +1点")
         else:
             # --- 不正解メッセージでも確定した correct_answer_string を使用 ---
             st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
