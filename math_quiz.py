@@ -594,8 +594,8 @@ if problem_data and not st.session_state.answered: # problem_dataが存在する
         key=f"choice_{st.session_state.total}_{st.session_state.quiz_type}" # キーをよりユニークに
     )
     if st.button("解答する"):
-        st.session_state.answered = True
-        st.session_state.user_choice = user_choice
+        st.session_state.answered = True
+        st.session_state.user_choice = user_choice
         st.session_state.total += 1
         
         # --- 正解判定にはここで確定した correct_answer_string を使用 ---
