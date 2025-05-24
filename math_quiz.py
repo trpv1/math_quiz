@@ -597,9 +597,9 @@ if problem_data and not st.session_state.answered: # problem_dataが存在する
         st.session_state.answered = True
         st.session_state.user_choice = user_choice
         st.session_state.total += 1
-        
-        # --- 正解判定にはここで確定した correct_answer_string を使用 ---
-        if user_choice == correct_answer_string:
+        
+# --- 正解判定にはここで確定した correct_answer_string を使用 ---
+    if user_choice == correct_answer_string:
             st.session_state.score += 1
             st.session_state.is_correct = True
             play_sound(CORRECT_URL)
