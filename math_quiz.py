@@ -1,5 +1,7 @@
 import streamlit as st
-import random, math, time
+import random
+import math
+import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -233,26 +235,34 @@ if "quiz_type" not in st.session_state:
     st.stop()
     
 # === Google Sheets 連携 ===
+# !!! 注意: Streamlit Cloudで secrets を使う場合、st.secrets["gcp_service_account"] は辞書として扱われます。
+# ローカル環境で JSON ファイルを使う場合は from_json_keyfile_name を使用します。
+# ここでは st.secrets を使う前提で進めます。
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
-client = gspread.authorize(creds)
+try:
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+    client = gspread.authorize(creds)
+    spreadsheet = client.open("ScoreBoard") # スプレッドシート名を正確に指定
 
-# 1つのスプレッドシートを開く
-spreadsheet = client.open("ScoreBoard")
+    if st.session_state.quiz_type == "sqrt":
+        sheet = spreadsheet.get_worksheet(1) # Sheet2 (インデックス1)
+    elif st.session_state.quiz_type == "eng":
+        sheet = spreadsheet.get_worksheet(2) # Sheet3 (インデックス2)
+    else:
+        # デフォルトまたはエラー処理 (例: 最初のシートを使うか、エラー表示)
+        # この段階では quiz_type が未定義の場合もあるので、実行順序に注意。
+        # quiz_type 選択後にこの部分が評価されるようにする。
+        # ただし、現状のst.stop()の配置では問題ない。
+        sheet = spreadsheet.get_worksheet(0) # Fallback or define specific sheet
 
-# quiz_type に応じてワークシート（タブ）を使い分け
-if st.session_state.quiz_type == "sqrt":
-    # インデックスで取得（0 が最初のシート、1 が2番目…）
-    sheet = spreadsheet.get_worksheet(1)    # Sheet2
-elif st.session_state.quiz_type == "eng":
-    sheet = spreadsheet.get_worksheet(2)    # Sheet3
-else:
-    sheet = spreadsheet.get_worksheet(3)    # さらに別のタブ（必要なら）
-
-# あるいはシート名で取得する場合
-# sheet = spreadsheet.worksheet("平方根")    # タブ名が「平方根」の場合
-# sheet = spreadsheet.worksheet("中3英語")  # タブ名が「中3英語」の場合
-
+except Exception as e:
+    st.error(f"Google Sheetsへの接続に失敗しました: {e}")
+    st.info("アプリの管理者は、Streamlit CloudのSecrets設定で 'gcp_service_account' が正しく設定されているか確認してください。")
+    # 開発中はローカルのダミーシートを使うなどの対策も有効
+    class DummySheet:
+        def append_row(self, data): pass
+        def get_all_records(self): return []
+    sheet = DummySheet() # エラー発生時はダミーオブジェクトを使用
 
 # === 効果音 URL ===
 NAME_URL    = "https://github.com/trpv1/square-root-app/raw/main/static/name.mp3"
@@ -271,25 +281,30 @@ def play_sound(url: str):
 # === セッション初期化 ===
 def init_state():
     defaults = dict(
-        nickname="", started=False, start_time=None,
-        score=0, total=0, current_problem=None,
-        answered=False, is_correct=None, user_choice="",
-        saved=False, played_name=False,
+        nickname="", 
+        started=False, 
+        start_time=None,
+        score=0, 
+        total=0, 
+        current_problem=None,
+        answered=False, 
+        is_correct=None, 
+        user_choice="",
+        saved=False, 
+        played_name=False,
         asked_eng_indices_this_session=[],
         incorrectly_answered_eng_questions=[],
-        # --- 追加：現在の問題で表示するためのシャッフル済み選択肢 ---
         current_problem_display_choices=[],
-        # --- 追加ここまで ---
     )
     for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
-init_state()
+        if k not in st.session_state: # 存在しないキーのみ初期化
+            st.session_state[k] = v
+init_state() # アプリ起動時に一度だけ呼ばれるようにする
 
 # --- 問題生成（√問題 or 英語問題） ---
 def make_problem():
-    # √問題 (変更なし)
     if st.session_state.quiz_type == "sqrt":
-        fav = {12, 18, 20, 24, 28, 32, 40, 48, 50, 54, 56, 58} # fav は元のコードでは未使用のようですが、残しておきます
+        fav = {12, 18, 20, 24, 28, 32, 40, 48, 50, 54, 56, 58}
         population = list(range(2, 101))
         weights = [10 if n in fav else 1 for n in population]
         a = random.choices(population, weights)[0]
@@ -302,20 +317,12 @@ def make_problem():
                     if inner == 1
                     else (f"√{inner}" if outer == 1 else f"{outer}√{inner}")
                 )
-                unsimpl = f"√{a}" # unsimpl も元のコードでは未使用のようですが、残しておきます
-                choices_set = {correct} # 簡約形が必ず選択肢に含まれるように修正
-                # unsimpl を必ず含めるかは仕様によりますが、ここでは簡約形のみ必須とします。
-                # もし √a の形も選択肢に含めたい場合は choices_set = {correct, unsimpl} とします。
-
-                # 質の高いダミー選択肢を生成（より正解と混同しやすく、かつ重複を避ける）
-                # 例: √a の値に近いもの、係数が近いもの、根号内が近いものなど
-                # ここでは元のロジックを維持しつつ、重複を確実に避けます
-                while len(choices_set) < 4: # 選択肢の数を減らして質を上げることを検討 (例: 4択)
-                    o_fake = random.randint(1, max(9, outer + 2)) # outerに近い値を生成
-                    i_fake = random.randint(1, max(10, inner + 5)) # innerに近い値を生成
-                    if i_fake == 1 and o_fake == outer : continue # 正解と同じものは避ける (inner=1の場合)
-                    if o_fake == outer and i_fake == inner: continue # 正解と同じものは避ける
-
+                choices_set = {correct}
+                while len(choices_set) < 4:
+                    o_fake = random.randint(1, max(9, outer + 2))
+                    i_fake = random.randint(1, max(10, inner + 5))
+                    if i_fake == 1 and o_fake == outer: continue
+                    if o_fake == outer and i_fake == inner: continue
                     fake = (
                         str(o_fake)
                         if i_fake == 1
@@ -323,132 +330,109 @@ def make_problem():
                     )
                     choices_set.add(fake)
                 
-                choices = random.sample(list(choices_set), k=min(len(choices_set), 4)) # 選択肢の数を4つに
-                # 元のコードは10個でしたが、多すぎると感じる場合があるため4つを提案
-                return a, correct, choices # `a`が問題文の値 `q` に対応
+                choices = random.sample(list(choices_set), k=min(len(choices_set), 4))
+                return a, correct, choices
 
-    # 英語問題
     elif st.session_state.quiz_type == "eng":
         available_quizzes_with_indices = []
-        for i, quiz_item in enumerate(ENG_QUIZZES_DATA): # グローバルなデータを使用
+        for i, quiz_item in enumerate(ENG_QUIZZES_DATA):
             if i not in st.session_state.asked_eng_indices_this_session:
                 available_quizzes_with_indices.append({"original_index": i, "data": quiz_item})
         
         if not available_quizzes_with_indices:
-            # すべての問題が出題された場合
-            return None # Noneを返して、呼び出し元で処理
+            return None
 
         selected_item = random.choice(available_quizzes_with_indices)
         quiz_data_with_explanation = selected_item["data"]
         st.session_state.asked_eng_indices_this_session.append(selected_item["original_index"])
-        
-        # 問題データ全体を返す（q, correct, choices, explanation を含む辞書）
         return quiz_data_with_explanation
-
     else:
         st.error("不正なクイズ種別です")
-        st.stop()
-        
-# === スコア保存／取得 ===
-def save_score(name, score):
-    ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([name, score, ts])
-def top3():
-    rec = sheet.get_all_records()
-    return sorted(rec, key=lambda x: x["score"], reverse=True)[:3]
+        return None # エラー時はNoneを返す
 
-# --- クラス選択 ---
+# === スコア保存／取得 ===
+def save_score(name, score_val): # scoreだと関数のスコープと混同するためscore_valに変更
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        sheet.append_row([name, score_val, ts])
+    except Exception as e:
+        st.error(f"スコアの保存に失敗しました: {e}")
+
+def top3():
+    try:
+        rec = sheet.get_all_records()
+        # scoreが文字列として読み込まれる可能性を考慮し、数値に変換してソート
+        for row in rec:
+            if isinstance(row.get("score"), str) and row.get("score").isdigit():
+                row["score"] = int(row["score"])
+            elif not isinstance(row.get("score"), int):
+                row["score"] = 0 # スコアが無効な場合は0として扱う
+        return sorted(rec, key=lambda x: x.get("score", 0), reverse=True)[:3]
+    except Exception as e:
+        st.error(f"ランキングの取得に失敗しました: {e}")
+        return []
+
+
+# --- クラス選択などのページ制御 ---
 if "class_selected" not in st.session_state:
     st.title("所属を選択してください")
-
     def select_class(cls):
         st.session_state.class_selected = cls
-
     c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        st.button("3R1", on_click=select_class, args=("3R1",))
-    with c2:
-        st.button("3R2", on_click=select_class, args=("3R2",))
-    with c3:
-        st.button("3R3", on_click=select_class, args=("3R3",))
-    with c4:
-        st.button("講師", on_click=select_class, args=("講師",))
-    with c5:
-        st.button("その他", on_click=select_class, args=("その他",))
-
+    with c1: st.button("3R1", on_click=select_class, args=("3R1",))
+    with c2: st.button("3R2", on_click=select_class, args=("3R2",))
+    with c3: st.button("3R3", on_click=select_class, args=("3R3",))
+    with c4: st.button("講師", on_click=select_class, args=("講師",))
+    with c5: st.button("その他", on_click=select_class, args=("その他",))
     st.stop()
 
-# --- パスワード認証 ---
 if not st.session_state.get("password_ok", False):
     st.text_input("Password：作成者の担当クラスは？", type="password", key="pw_input")
-
     def check_password():
-        if st.session_state.pw_input == "3R3":
+        if st.session_state.pw_input == "3R3": # パスワードは適宜変更
             st.session_state.password_ok = True
         else:
             st.error("パスワードが違います")
-
     st.button("確認", on_click=check_password)
     st.stop()
 
-# --- 注意書き ---
-if st.session_state.get("password_ok", False) and not st.session_state.get("agreed", False):
+if not st.session_state.get("agreed", False):
     st.markdown("## ⚠️ 注意事項", unsafe_allow_html=True)
     st.write("""
-- **個人情報**（本名・住所・電話番号など）の入力は禁止です。  
-- **1日30分以上**の継続使用はお控えください（他の勉強時間を優先しましょう）。  
-- 本アプリは**初めて作成したアプリ**のため、低クオリティです。すみません。  
-- エラーメッセージが出ることがありますが、**ページを更新**すると改善される場合があります。  
-- 上記ルールを遵守いただけない場合は、利用を中止いたします。  
+    - **個人情報**（本名・住所・電話番号など）の入力は禁止です。  
+    - **1日30分以上**の継続使用はお控えください（他の勉強時間を優先しましょう）。  
+    - 本アプリは**初めて作成したアプリ**のため、低クオリティです。すみません。  
+    - エラーメッセージが出ることがありますが、**ページを更新**すると改善される場合があります。  
+    - 上記ルールを遵守いただけない場合は、利用を中止いたします。  
     """)
-
     def agree_and_continue():
         st.session_state.agreed = True
-
     st.button("■ 同意して次へ", on_click=agree_and_continue)
     st.stop()
 
-
-# === ニックネーム入力 ===
-# ① nick_input をセッションに先に初期化
-if "nick_input" not in st.session_state:
-    st.session_state["nick_input"] = ""
-
-# ② 初回のみ NAME_URL を再生
-if not st.session_state.played_name:
-    play_sound(NAME_URL)
-    st.session_state.played_name = True
-
-# ③ ニックネーム未設定なら入力画面
 if st.session_state.nickname == "":
+    if not st.session_state.played_name:
+        play_sound(NAME_URL)
+        st.session_state.played_name = True
     st.title("1分間クイズ")
-    # テキスト入力（nick_input キーで保存）
     st.text_input("ニックネームを入力してください", key="nick_input", max_chars=12)
-    # 決定ボタンは on_click コールバックで nickname をセット
     def set_nickname():
-        val = st.session_state["nick_input"].strip()
+        val = st.session_state.nick_input.strip()
         if val:
-            st.session_state["nickname"] = val
-
+            st.session_state.nickname = val
     st.button("決定", on_click=set_nickname)
     st.stop()
 
-# === スタート前画面 ===
+# === クイズ本体 ===
 if not st.session_state.started:
-    # クイズ種別に応じたラベル
-    if st.session_state.quiz_type == "sqrt":
-        quiz_label = "平方根クイズ"
-    else:
-        quiz_label = "中3英語クイズ"
-
+    quiz_label = "平方根クイズ" if st.session_state.quiz_type == "sqrt" else "中3英語クイズ"
     st.title(f"{st.session_state.nickname} さんの{quiz_label}")
     st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点")
 
-    def start_quiz(): # <--- この行のインデントを確認・修正
+    def start_quiz():
         play_sound(START_URL)
         st.session_state.started = True
         st.session_state.start_time = time.time()
-        
         st.session_state.score = 0
         st.session_state.total = 0
         st.session_state.answered = False
@@ -462,187 +446,207 @@ if not st.session_state.started:
             
         st.session_state.current_problem = make_problem()
 
-        # --- 追加：問題の表示用選択肢を準備 ---
         if st.session_state.current_problem is None:
             st.session_state.current_problem_display_choices = []
         elif st.session_state.quiz_type == "eng":
             eng_problem_data = st.session_state.current_problem
-            shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
-            st.session_state.current_problem_display_choices = shuffled_choices
+            if "choices" in eng_problem_data and eng_problem_data["choices"]:
+                shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
+                st.session_state.current_problem_display_choices = shuffled_choices
+            else:
+                 st.session_state.current_problem_display_choices = [] # 念のため
         elif st.session_state.quiz_type == "sqrt":
             _, _, sqrt_choices = st.session_state.current_problem
             st.session_state.current_problem_display_choices = sqrt_choices
-
+    
     st.button("スタート！", on_click=start_quiz)
     st.stop()
 
-# === タイマー表示 ===
-remaining = max(0, 60 - int(time.time() - st.session_state.start_time))
+# --- タイマー表示 ---
+# start_time が None の場合の対策 (スタートボタン押下前など)
+current_time = time.time()
+elapsed_time = 0
+if st.session_state.start_time is not None:
+    elapsed_time = int(current_time - st.session_state.start_time)
+remaining = max(0, 60 - elapsed_time)
 mm, ss = divmod(remaining, 60)
+
 st.markdown(f"## ⏱️ {st.session_state.nickname} さんのタイムアタック！")
 st.info(f"残り {mm}:{ss:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
-# === タイムアップ＆ランキング ===
+# --- タイムアップ処理 ---
 if remaining == 0:
     st.warning("⏰ タイムアップ！")
     st.write(f"最終スコア: {st.session_state.score}点 ({st.session_state.total}問)")
 
-    # --- ここから追加：間違えた問題の表示 ---
     if st.session_state.quiz_type == "eng" and st.session_state.incorrectly_answered_eng_questions:
         st.markdown("---") 
         st.subheader("📝 間違えた問題の復習")
         for i, item in enumerate(st.session_state.incorrectly_answered_eng_questions):
             container = st.container(border=True)
             container.markdown(f"**問題 {i+1}**")
-            container.markdown(item['question_text']) # 問題文は改行を活かすために markdown
+            container.markdown(item['question_text'])
             container.markdown(f"あなたの解答: <span style='color:red;'>{item['user_answer']}</span>", unsafe_allow_html=True)
             container.markdown(f"正解: <span style='color:green;'>{item['correct_answer']}</span>", unsafe_allow_html=True)
             with container.expander("💡 解説を見る"):
                 st.markdown(item['explanation'])
         st.markdown("---")
-    # --- 追加ここまで ---
 
     if not st.session_state.saved:
-        # 1️⃣ フルネームを生成して保存
         full_name = f"{st.session_state.class_selected}_{st.session_state.nickname}"
         save_score(full_name, st.session_state.score)
-
         st.session_state.saved = True
-        # 2️⃣ ランキング上位かどうか判定
+        
         ranking = top3()
-        names = [r["name"] for r in ranking] # get_all_records()が辞書のリストを返すことを前提
-        
-        # フルネームでのチェック（クラス名_ニックネーム）
-        is_top_ranker = False
-        for rank_entry in ranking:
-            # Google Sheetsから読み込むと数値が文字列になることがあるため、比較前に型を揃えるか、
-            # name と score のキーが存在することを確認する
-            if "name" in rank_entry and rank_entry["name"] == full_name:
-                 # 同名で今回のスコア以上が既に存在しないか、または今回のスコアがより高い場合
-                 if "score" in rank_entry and st.session_state.score >= rank_entry["score"]:
-                    is_top_ranker = True # 厳密にはスコア比較も必要だが、ここでは名前の一致で判定
-                    break
-        
-        # 上記のnamesリストに現在のfull_nameが含まれていれば、その時点でランクインしている
-        # (save_scoreの後にtop3()を呼んでいるので、自分の最新スコアは必ず含まれるはず)
-        # より正確には、自分のスコアが3位以内かどうかで判定
-        
-        current_score = st.session_state.score
         is_in_top3 = False
-        if len(ranking) < 3: # ランキングが3名未満なら無条件でトップ3
-            is_in_top3 = True
-        else:
-            # 3位のスコアと比較 (rankingはscoreでソート済みのはず)
-            if current_score >= ranking[2]["score"]: # ranking[2]が存在するか確認が必要
-                 # さらに、同スコアの場合のタイブレークルールがあれば考慮
-                 # ここでは単純にスコアで判定
+        if ranking: # ランキングが取得できた場合のみ判定
+            user_rank_data = next((r for r in ranking if r.get("name") == full_name and r.get("score") == st.session_state.score), None)
+            if user_rank_data: # 自分の今回の記録がランキング(上位3件)に含まれるか
                  is_in_top3 = True
+            elif len(ranking) < 3: # 3位未満しかいなければ、自分のスコアが0でもトップ3扱い（保存はされる）
+                 is_in_top3 = True
+            elif ranking[2].get("score", 0) <= st.session_state.score : # 3位のスコア以上か
+                 is_in_top3 = True
+        else: # ランキングが空ならトップランカー扱い
+            is_in_top3 = True
 
 
-        if is_in_top3 : # 正確なランクイン判定に基づく
+        if is_in_top3:
             play_sound(RESULT1_URL)
         else:
             play_sound(RESULT2_URL)
         st.balloons()
         
     st.write("### 🏆 歴代ランキング（上位3名）")
-    for i, r in enumerate(top3(), 1):
-        # Google Sheets から読み込んだ際にキーが存在しない場合のエラーを避ける
-        name_display = r.get("name", "名無し")
-        score_display = r.get("score", 0)
-        st.write(f"{i}. {name_display} — {score_display}点")
+    current_ranking = top3() # 最新のランキングを取得
+    if current_ranking:
+        for i, r in enumerate(current_ranking, 1):
+            name_display = r.get("name", "名無し")
+            score_display = r.get("score", 0)
+            st.write(f"{i}. {name_display} — {score_display}点")
+    else:
+        st.write("まだランキングデータがありません。")
 
     def restart_all():
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
+        keys_to_keep = ["quiz_type", "class_selected", "password_ok", "agreed", "played_name"] # 完全に最初からではない場合
+        # 完全に最初からにする場合は空リスト
+        # keys_to_keep = [] 
+        
+        # クイズ種別選択からやり直す場合
+        # st.session_state.clear() -> 全て消える
+        
+        for key in list(st.session_state.keys()):
+            if key not in keys_to_keep:
+                del st.session_state[key]
+        # init_state() を再度呼び出して、削除されなかったキー以外のデフォルト値を設定
+        init_state()
+        # st.rerun() # これでニックネーム入力からになるはず
+        # もしクイズタイプ選択からに戻したいなら、quiz_typeもdelする
+        if "quiz_type" in keys_to_keep: # ニックネーム入力から
+            pass
+        else: # クイズタイプ選択から
+            if "quiz_type" in st.session_state: del st.session_state.quiz_type
         st.rerun()
+
 
     st.button("🔁 もう一度挑戦", on_click=restart_all)
     st.stop()
-    
-# === 問題表示 ===
+
+# --- 問題表示と解答プロセス ---
 problem_data = st.session_state.current_problem
 
-if problem_data is None and st.session_state.quiz_type == "eng":
-# ... (変更なし、この部分は問題が尽きた場合の処理として正しい) ...
+if problem_data is None:
+    if st.session_state.quiz_type == "eng":
+        st.warning("🎉 全ての英語の問題に挑戦しました！素晴らしい！")
+        st.info("タイムアップまで待つか、もう一度挑戦してください。")
+    else:
+        st.warning("問題の読み込みエラー、または全ての問題に解答しました。")
     st.stop()
 
-# --- 問題文と正解の文字列をここで確定 ---
 question_text_to_display = ""
 correct_answer_string = ""
 
-if problem_data: # problem_dataが存在する場合のみ処理
-    if st.session_state.quiz_type == "sqrt":
-        q_display_value, correct_sqrt_ans, _ = problem_data
-        question_text_to_display = f"√{q_display_value} を簡約すると？"
-        correct_answer_string = correct_sqrt_ans
-    elif st.session_state.quiz_type == "eng":
-        q_dict = problem_data
-        question_text_to_display = q_dict["q"]
-        correct_answer_string = q_dict["correct"]
-    
-    st.subheader(question_text_to_display)
+if st.session_state.quiz_type == "sqrt":
+    q_display_value, correct_sqrt_ans, _ = problem_data
+    question_text_to_display = f"√{q_display_value} を簡約すると？"
+    correct_answer_string = correct_sqrt_ans
+elif st.session_state.quiz_type == "eng":
+    q_dict = problem_data
+    question_text_to_display = q_dict["q"]
+    correct_answer_string = q_dict["correct"]
 
-# --- 表示用の選択肢はセッション状態から取得 ---
+st.subheader(question_text_to_display)
 choices_for_radio = st.session_state.current_problem_display_choices
 
-# === 解答フェーズ ===
-if problem_data and not st.session_state.answered: # problem_dataが存在することも確認
-    user_choice = st.radio(
-        "選択肢を選んでください", 
-        choices_for_radio, 
-        key=f"choice_{st.session_state.total}_{st.session_state.quiz_type}" # キーをよりユニークに
-    )
-    if st.button("解答する"):
-        st.session_state.answered = True
-        st.session_state.user_choice = user_choice
-        st.session_state.total += 1
-        
-# --- 正解判定にはここで確定した correct_answer_string を使用 ---
-    if user_choice == correct_answer_string:
-        st.session_state.score += 1
-        st.session_state.is_correct = True
-        play_sound(CORRECT_URL)
-    else:
-        st.session_state.score -= 1
-        st.session_state.is_correct = False
-        play_sound(WRONG_URL)
-        
-    if st.session_state.quiz_type == "eng":
-        current_q_data = st.session_state.current_problem
-        st.session_state.incorrectly_answered_eng_questions.append({
-            "question_text": current_q_data["q"],
-            "user_answer": user_choice,
-            "correct_answer": correct_answer_string, # ここも確定した正解を使用
-            "explanation": current_q_data["explanation"]
-        })
+if not choices_for_radio and st.session_state.quiz_type == "eng" and problem_data.get("choices"):
+    # フォールバック: display_choicesが空だが元の問題にはchoicesがある場合 (主にデバッグ用)
+    choices_for_radio = random.sample(problem_data["choices"], len(problem_data["choices"]))
+    st.session_state.current_problem_display_choices = choices_for_radio
 
-# === 結果表示 ===
-result_box = st.empty()
+
+if not st.session_state.answered:
+    if not choices_for_radio:
+        st.error("選択肢が読み込めませんでした。問題をスキップするか、やり直してください。")
+        # ここで次の問題に進むボタンや、リスタートを促す処理を追加することも検討
+    else:
+        user_choice = st.radio(
+            "選択肢を選んでください", 
+            choices_for_radio, 
+            key=f"choice_{st.session_state.total}_{st.session_state.quiz_type}"
+        )
+        if st.button("解答する"):
+            st.session_state.answered = True
+            st.session_state.user_choice = user_choice
+            st.session_state.total += 1
+            
+            if st.session_state.user_choice == correct_answer_string:
+                st.session_state.score += 1
+                st.session_state.is_correct = True
+                play_sound(CORRECT_URL)
+            else:
+                st.session_state.score -= 1
+                st.session_state.is_correct = False
+                play_sound(WRONG_URL)
+                
+                if st.session_state.quiz_type == "eng":
+                    current_q_data = st.session_state.current_problem
+                    st.session_state.incorrectly_answered_eng_questions.append({
+                        "question_text": current_q_data["q"],
+                        "user_answer": st.session_state.user_choice,
+                        "correct_answer": correct_answer_string, 
+                        "explanation": current_q_data["explanation"]
+                    })
+            st.rerun() # 解答後に即座に結果表示エリアを更新するためにrerun
+
+# --- 結果表示と次の問題へのボタン ---
 if st.session_state.answered:
+    result_box = st.empty() # result_boxの定義をここに移動
     with result_box.container():
         if st.session_state.is_correct:
             st.success("🎉 正解！ +1点")
         else:
-# --- 不正解メッセージでも確定した correct_answer_string を使用 ---
             st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
+
         def next_q():
-            result_box.empty()
+            # result_box.empty() # コンテナごと消すので不要な場合もあるが、残してもOK
             st.session_state.current_problem = make_problem()
-            st.session_state.answered = False
+            st.session_state.answered = False # これをリセット
             st.session_state.is_correct = None
             st.session_state.user_choice = ""
-            
-# --- 追加：次の問題の表示用選択肢を準備 ---
-if st.session_state.current_problem is None:
-    st.session_state.current_problem_display_choices = []
-elif st.session_state.quiz_type == "eng":
-    eng_problem_data = st.session_state.current_problem
-    shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
-    st.session_state.current_problem_display_choices = shuffled_choices
-elif st.session_state.quiz_type == "sqrt":
-    _, _, sqrt_choices = st.session_state.current_problem
-    st.session_state.current_problem_display_choices = sqrt_choices
-    
-    st.button("次の問題へ", on_click=next_q)
+
+            if st.session_state.current_problem is None:
+                st.session_state.current_problem_display_choices = []
+            elif st.session_state.quiz_type == "eng":
+                eng_problem_data = st.session_state.current_problem
+                if "choices" in eng_problem_data and eng_problem_data["choices"]:
+                    shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
+                    st.session_state.current_problem_display_choices = shuffled_choices
+                else:
+                    st.session_state.current_problem_display_choices = []
+            elif st.session_state.quiz_type == "sqrt":
+                _, _, sqrt_choices = st.session_state.current_problem
+                st.session_state.current_problem_display_choices = sqrt_choices
+            st.rerun() # 状態を更新して再描画
+
+        st.button("次の問題へ", on_click=next_q)
     st.stop()
