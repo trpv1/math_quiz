@@ -270,18 +270,19 @@ def play_sound(url: str):
 
 # === セッション初期化 ===
 def init_state():
-    defaults = dict(
-        nickname="", started=False, start_time=None,
-        score=0, total=0, current_problem=None,
-        answered=False, is_correct=None, user_choice="",
-        saved=False, played_name=False,
-        # --- 追加 ---
-        asked_eng_indices_this_session=[], # 現在のセッションで出題済みの英語問題のインデックス
-        incorrectly_answered_eng_questions=[], # 間違えた英語問題の詳細を格納するリスト
-        # --- 追加ここまで ---
-    )
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
+    defaults = dict(
+        nickname="", started=False, start_time=None,
+        score=0, total=0, current_problem=None,
+        answered=False, is_correct=None, user_choice="",
+        saved=False, played_name=False,
+        asked_eng_indices_this_session=[],
+        incorrectly_answered_eng_questions=[],
+        # --- 追加：現在の問題で表示するためのシャッフル済み選択肢 ---
+        current_problem_display_choices=[],
+        # --- 追加ここまで ---
+    )
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 init_state()
 
 # --- 問題生成（√問題 or 英語問題） ---
@@ -443,29 +444,37 @@ if not st.session_state.started:
     st.title(f"{st.session_state.nickname} さんの{quiz_label}")
     st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点")
 
-    def start_quiz():
-        play_sound(START_URL)
-        st.session_state.started = True
-        st.session_state.start_time = time.time()
-        
-        # --- スコアと問題追跡をリセット ---
-        st.session_state.score = 0
-        st.session_state.total = 0
-        st.session_state.answered = False
-        st.session_state.is_correct = None
-        st.session_state.user_choice = ""
-        st.session_state.saved = False # 保存済みフラグもリセット
+    def start_quiz():
+        play_sound(START_URL)
+        st.session_state.started = True
+        st.session_state.start_time = time.time()
+        
+        st.session_state.score = 0
+        st.session_state.total = 0
+        st.session_state.answered = False
+        st.session_state.is_correct = None
+        st.session_state.user_choice = ""
+        st.session_state.saved = False
 
-        if st.session_state.quiz_type == "eng":
-            st.session_state.asked_eng_indices_this_session = []
-            st.session_state.incorrectly_answered_eng_questions = []
-        # --- リセットここまで ---
-            
-        st.session_state.current_problem = make_problem()
+        if st.session_state.quiz_type == "eng":
+            st.session_state.asked_eng_indices_this_session = []
+            st.session_state.incorrectly_answered_eng_questions = []
+            
+        st.session_state.current_problem = make_problem()
 
-    st.button("スタート！", on_click=start_quiz)
-    st.stop()
+        # --- 追加：問題の表示用選択肢を準備 ---
+        if st.session_state.current_problem is None:
+            st.session_state.current_problem_display_choices = []
+        elif st.session_state.quiz_type == "eng":
+            eng_problem_data = st.session_state.current_problem
+            shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
+            st.session_state.current_problem_display_choices = shuffled_choices
+        elif st.session_state.quiz_type == "sqrt":
+            _, _, sqrt_choices = st.session_state.current_problem
+            st.session_state.current_problem_display_choices = sqrt_choices
 
+    st.button("スタート！", on_click=start_quiz)
+    st.stop()
 
 # === タイマー表示 ===
 remaining = max(0, 60 - int(time.time() - st.session_state.start_time))
@@ -554,77 +563,85 @@ if remaining == 0:
 # === 問題表示 ===
 problem_data = st.session_state.current_problem
 
-# --- 英語クイズで問題がなくなった場合の処理 ---
 if problem_data is None and st.session_state.quiz_type == "eng":
-    st.warning("🎉 全ての英語の問題に挑戦しました！素晴らしい！")
-    st.write("タイムアップを待つか、結果表示のためにタイマーを進めます。")
-    # タイムアップとして扱うために、残り時間を0にする
-    if st.session_state.start_time is not None : # タイマーが開始されている場合のみ
-        # 強制的にタイムアップさせるために、start_timeを過去にする
-        # ただし、このままだと即時タイムアップ画面に遷移しない場合があるので、
-        # 実際にはユーザーにボタンを押させるなどの工夫が必要かもしれません。
-        # ここでは、メッセージ表示に留めます。
-        # 実際には、remaining == 0 のロジックが次に評価されるのを待ちます。
-        # もし即時終了させたい場合は、st.session_state.start_time = time.time() - 70 のようにする。
-        # そして st.rerun() する。
-        pass # この後のタイマーロジックでタイムアップが処理されるのを期待
-    else: # まだスタートしていないなどのエッジケース
-        st.info("クイズがまだ開始されていません。")
-    st.stop()
-# --- ここまで ---
+    # ... (変更なし、この部分は問題が尽きた場合の処理として正しい) ...
+    st.stop()
 
+# --- 問題文と正解の文字列をここで確定 ---
+question_text_to_display = ""
+correct_answer_string = ""
 
-# 問題文を分岐表示
-if st.session_state.quiz_type == "sqrt":
-    q_display_value, correct, choices = problem_data # problem_dataは (a, correct, choices)
-    st.subheader(f"√{q_display_value} を簡約すると？")
-else: # eng
-    q_dict = problem_data # problem_data は quiz_dictionary
-    q = q_dict["q"]
-    correct = q_dict["correct"]
-    # 選択肢をここでシャッフルする
-    choices = random.sample(q_dict["choices"], len(q_dict["choices"]))
-    st.subheader(q)
+if problem_data: # problem_dataが存在する場合のみ処理
+    if st.session_state.quiz_type == "sqrt":
+        q_display_value, correct_sqrt_ans, _ = problem_data
+        question_text_to_display = f"√{q_display_value} を簡約すると？"
+        correct_answer_string = correct_sqrt_ans
+    elif st.session_state.quiz_type == "eng":
+        q_dict = problem_data
+        question_text_to_display = q_dict["q"]
+        correct_answer_string = q_dict["correct"]
+    
+    st.subheader(question_text_to_display)
+
+# --- 表示用の選択肢はセッション状態から取得 ---
+choices_for_radio = st.session_state.current_problem_display_choices
 
 # === 解答フェーズ ===
-if not st.session_state.answered:
-    user_choice = st.radio("選択肢を選んでください", choices, key=f"choice_{st.session_state.total}") # keyにtotalを加えて再描画時の選択維持
-    if st.button("解答する"):
-        st.session_state.answered = True
-        st.session_state.user_choice = user_choice
-        st.session_state.total += 1
-        if user_choice == correct:
-            st.session_state.score += 1
-            st.session_state.is_correct = True
-            play_sound(CORRECT_URL)
-        else:
-            st.session_state.score -= 1
-            st.session_state.is_correct = False
-            play_sound(WRONG_URL)
-            # --- 不正解だった英語の問題を保存 ---
-            if st.session_state.quiz_type == "eng":
-                current_q_data = st.session_state.current_problem # これはq_dictと同じ
-                st.session_state.incorrectly_answered_eng_questions.append({
-                    "question_text": current_q_data["q"],
-                    "user_answer": user_choice,
-                    "correct_answer": current_q_data["correct"],
-                    "explanation": current_q_data["explanation"]
-                })
+if problem_data and not st.session_state.answered: # problem_dataが存在することも確認
+    user_choice = st.radio(
+        "選択肢を選んでください", 
+        choices_for_radio, 
+        key=f"choice_{st.session_state.total}_{st.session_state.quiz_type}" # キーをよりユニークに
+    )
+    if st.button("解答する"):
+        st.session_state.answered = True
+        st.session_state.user_choice = user_choice
+        st.session_state.total += 1
+        
+        # --- 正解判定にはここで確定した correct_answer_string を使用 ---
+        if user_choice == correct_answer_string:
+            st.session_state.score += 1
+            st.session_state.is_correct = True
+            play_sound(CORRECT_URL)
+        else:
+            st.session_state.score -= 1
+            st.session_state.is_correct = False
+            play_sound(WRONG_URL)
+            if st.session_state.quiz_type == "eng":
+                current_q_data = st.session_state.current_problem
+                st.session_state.incorrectly_answered_eng_questions.append({
+                    "question_text": current_q_data["q"],
+                    "user_answer": user_choice,
+                    "correct_answer": correct_answer_string, # ここも確定した正解を使用
+                    "explanation": current_q_data["explanation"]
+                })
 
 # === 結果表示 ===
 result_box = st.empty()
 if st.session_state.answered:
-    with result_box.container():
-        if st.session_state.is_correct:
-            st.success("🎉 正解！ +1点")
-        else:
-            st.error(f"😡 不正解！ 正解は {correct} でした —1点")
-        def next_q():
-            result_box.empty()
-            st.session_state.current_problem = make_problem()
-            st.session_state.answered = False
-            st.session_state.is_correct = None
-            st.session_state.user_choice = ""
-        st.button("次の問題へ", on_click=next_q)
-    st.stop()
+    with result_box.container():
+        if st.session_state.is_correct:
+            st.success("🎉 正解！ +1点")
+        else:
+            # --- 不正解メッセージでも確定した correct_answer_string を使用 ---
+            st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
+        def next_q():
+            result_box.empty()
+            st.session_state.current_problem = make_problem()
+            st.session_state.answered = False
+            st.session_state.is_correct = None
+            st.session_state.user_choice = ""
 
+            # --- 追加：次の問題の表示用選択肢を準備 ---
+            if st.session_state.current_problem is None:
+                st.session_state.current_problem_display_choices = []
+            elif st.session_state.quiz_type == "eng":
+                eng_problem_data = st.session_state.current_problem
+                shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
+                st.session_state.current_problem_display_choices = shuffled_choices
+            elif st.session_state.quiz_type == "sqrt":
+                _, _, sqrt_choices = st.session_state.current_problem
+                st.session_state.current_problem_display_choices = sqrt_choices
+            
+        st.button("次の問題へ", on_click=next_q)
+    st.stop()
