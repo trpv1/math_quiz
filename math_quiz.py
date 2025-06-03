@@ -400,94 +400,123 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
                 st.rerun()
         st.stop() # 力の運動シミュレーションここまで
 
-    # --- 2. 斜面の傾きと力の分解シミュレーション ---
+        # --- 2. 斜面の傾きと力の分解シミュレーション ------------------
     elif st.session_state.get("sim_type") == "inclined_plane":
-    # ============ ここから running 画面 ============ #
-    if st.session_state.sim_stage == "running":
-        # --- スライダーで角度を更新 -----------------------------------
-        angle_deg = st.slider(
-            "斜面の角度を変更 (°)", 0.0, 90.0,
-            st.session_state.sim_ip_angle, 1.0, key="ip_angle_running"
-        )
-        st.session_state.sim_ip_angle = angle_deg
 
-        # --- 力の成分計算 --------------------------------------------
-        theta = math.radians(angle_deg)
-        g      = st.session_state.sim_ip_gravity_magnitude       # 9.8 N
-        F_par  = g * math.sin(theta)     # 斜面に平行
-        F_perp = g * math.cos(theta)     # 斜面に垂直 (＝垂直抗力)
+        # ------------------------------------------------------------ #
+        # イントロ画面（角度スライダーだけ表示）
+        # ------------------------------------------------------------ #
+        if st.session_state.sim_stage == "intro":
+            st.title("斜面の傾きと力の分解シミュレーション")
+            st.markdown("---")
+            st.write("""
+            このシミュレーションでは、斜面上の物体にはたらく重力を
+            斜面に平行な成分と垂直な成分に分解して可視化します。
+            スライダーで角度 θ を変えると、矢印の**長さだけ**が
+            $mg\\sinθ$、$mg\\cosθ$ に比例して伸び縮みします。
+            """)
 
-        # --- 描画 ----------------------------------------------------
-        def draw_incline(angle_deg: float,
-                         g: float, F_par: float, F_perp: float,
-                         block_size: float = 1.3) -> plt.Figure:
-            """
-            角度と力を受け取り，斜面＋物体＋３つの力ベクトルを作図して返す
-            矢印長さは mg を基準に比例スケール
-            """
-            theta = math.radians(angle_deg)
-            L     = 6.0                 # 斜面の長さ（図中尺度）
-            scale = 1.7 / g             # mg → 1.7 [図単位] になるようスケール
-
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.set_aspect("equal")
-            ax.axis("off")
-
-            # 斜面
-            x2, y2 = L * math.cos(theta), L * math.sin(theta)
-            ax.plot([0, x2], [0, y2], lw=3, color="navy")
-
-            # 物体（回転付き矩形）
-            cx, cy = 2*math.cos(theta), 2*math.sin(theta)   # 斜面途中に配置
-            trans  = (
-                mtrans.Affine2D()
-                .rotate_deg(angle_deg)
-                .translate(cx, cy)
-                + ax.transData
+            # 角度スライダー（変更すると即 rerun）
+            st.session_state.sim_ip_angle = st.slider(
+                "斜面の角度 θ (°)", 0.0, 90.0,
+                st.session_state.get("sim_ip_angle", 30.0), 1.0,
+                key="ip_angle_intro"
             )
-            rect = patches.Rectangle(
-                (-block_size/2, -block_size/2), block_size, block_size,
-                facecolor="#16c0ff", edgecolor="k", transform=trans, zorder=3
-            )
-            ax.add_patch(rect)
 
-            # ---- 力ベクトル（赤矢印） ----
-            head_w = 0.12                        # 矢印太さ
-            # 1) 重力 mg（真下）
-            ax.arrow(cx, cy, 0, -g*scale,
-                     width=head_w, color="red", length_includes_head=True)
-            # 2) 斜面に平行（下向き）
-            ax.arrow(cx, cy,
-                     -math.cos(theta)*F_par*scale,
-                     -math.sin(theta)*F_par*scale,
-                     width=head_w, color="red", length_includes_head=True)
-            # 3) 斜面に垂直（外向き）
-            ax.arrow(cx, cy,
-                     -math.sin(theta)*F_perp*scale,
-                      math.cos(theta)*F_perp*scale,
-                     width=head_w, color="red", length_includes_head=True)
-
-            # 描画範囲
-            ax.set_xlim(-1, L+1)
-            ax.set_ylim(-1, L*math.sin(theta)+2)
-            return fig
-
-        fig = draw_incline(angle_deg, g, F_par, F_perp)
-        st.pyplot(fig)
-
-        # --- 数値も残したい場合 ---------------------------------------
-        st.markdown("---")
-        st.info(
-            f"**角度 θ = {angle_deg:.1f}°**  ｜  "
-            f"$mg\\sinθ$ (平行)= {F_par:.2f} N  ｜  "
-            f"$mg\\cosθ$ (垂直)= {F_perp:.2f} N"
-        )
-
-        # --- 戻るボタン ----------------------------------------------
-        if st.button("シミュレーション選択に戻る", use_container_width=True,
-                     key="ip_back_to_sim_select"):
-            st.session_state.sim_selection_stage = "choose_sim_type"
+            # intro → running へ遷移
+            st.session_state.sim_stage = "running"
             st.rerun()
+
+        # ------------------------------------------------------------ #
+        # 可視化画面（running）
+        # ------------------------------------------------------------ #
+        elif st.session_state.sim_stage == "running":
+
+            # ===== 1. 入力（角度スライダー）==========================
+            angle_deg = st.slider(
+                "斜面の角度を変更 (°)", 0.0, 90.0,
+                st.session_state.sim_ip_angle, 1.0,
+                key="ip_angle_running"
+            )
+            st.session_state.sim_ip_angle = angle_deg
+
+            # ===== 2. 力の計算 =======================================
+            theta   = math.radians(angle_deg)
+            g       = st.session_state.sim_ip_gravity_magnitude    # 9.8 N
+            F_para  = g * math.sin(theta)      # 平行成分
+            F_perp  = g * math.cos(theta)      # 垂直成分（＝垂直抗力）
+
+            # ===== 3. 描画関数 =======================================
+            def draw_incline(theta_deg, g, F_para, F_perp) -> plt.Figure:
+                theta  = math.radians(theta_deg)
+                L      = 6.0                       # 斜面長さ（図尺度）
+                scale  = 1.7 / g                  # mg を 1.7 図単位に
+
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.set_aspect("equal")
+                ax.axis("off")
+
+                # 斜面
+                x2, y2 = L*math.cos(theta), L*math.sin(theta)
+                ax.plot([0, x2], [0, y2], lw=3, color="navy")
+
+                # 物体
+                cx, cy = 2*math.cos(theta), 2*math.sin(theta)
+                trans  = (
+                    mtrans.Affine2D()
+                    .rotate_deg(theta_deg)
+                    .translate(cx, cy) + ax.transData
+                )
+                rect = patches.Rectangle(
+                    (-0.65, -0.65), 1.3, 1.3,
+                    facecolor="#16c0ff", edgecolor="k",
+                    transform=trans, zorder=3
+                )
+                ax.add_patch(rect)
+
+                # 力ベクトル（赤）
+                head_w = 0.12
+                # ① 重力
+                ax.arrow(cx, cy, 0, -g*scale,
+                         width=head_w, color="red",
+                         length_includes_head=True)
+                # ② 平行成分
+                ax.arrow(cx, cy,
+                         -math.cos(theta)*F_para*scale,
+                         -math.sin(theta)*F_para*scale,
+                         width=head_w, color="red",
+                         length_includes_head=True)
+                # ③ 垂直成分（外向き）
+                ax.arrow(cx, cy,
+                         -math.sin(theta)*F_perp*scale,
+                          math.cos(theta)*F_perp*scale,
+                         width=head_w, color="red",
+                         length_includes_head=True)
+
+                # 描画範囲
+                ax.set_xlim(-1, L+1)
+                ax.set_ylim(-1, L*math.sin(theta)+2)
+                return fig
+
+            # ===== 4. 図を表示 =======================================
+            fig = draw_incline(angle_deg, g, F_para, F_perp)
+            st.pyplot(fig)
+
+            # ===== 5. 数値表示 =======================================
+            st.markdown("---")
+            st.info(
+                f"**θ = {angle_deg:.1f}°**  ｜  "
+                f"$mg\\sinθ$ = {F_para:.2f} N  ｜  "
+                f"$mg\\cosθ$ = {F_perp:.2f} N"
+            )
+
+            # ===== 6. 戻るボタン =====================================
+            if st.button("シミュレーション選択に戻る",
+                         use_container_width=True,
+                         key="ip_back_to_sim_select"):
+                st.session_state.sim_selection_stage = "choose_sim_type"
+                st.rerun()
+
 
         st.stop() # 斜面の傾きシミュレーションここまで
     st.stop() # 理科シミュレーション処理全体ここまで
