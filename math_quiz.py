@@ -5,6 +5,7 @@ import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np # 斜面の計算で使用
+import matplotlib.pyplot as plt
 
 # === 英語クイズデータ（解説付き） ===
 ENG_QUIZZES_DATA = [
