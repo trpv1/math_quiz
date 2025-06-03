@@ -5,7 +5,6 @@ import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np # 斜面の計算で使用
-import matplotlib.pyplot as plt # 【追加】グラフ描画のため
 
 # === 英語クイズデータ（解説付き） ===
 ENG_QUIZZES_DATA = [
@@ -218,53 +217,49 @@ ENG_QUIZZES_DATA = [
 
 # --- 初期化関連 ---
 def initialize_simulation_common():
-    st.session_state.sim_stage = "intro"
+    """シミュレーション共通で使う可能性のある変数を初期化"""
+    st.session_state.sim_stage = "intro" # 各シミュレーションの初期画面
 
 def initialize_force_motion_sim():
+    """力の運動シミュレーション用の変数を初期化"""
     initialize_simulation_common()
     st.session_state.sim_type = "force_motion"
-    st.session_state.sim_fm_internal_mass = 1.0
-    st.session_state.sim_fm_force = 0.0
-    st.session_state.sim_fm_time = 0.0
-    st.session_state.sim_fm_velocity = 0.0
-    st.session_state.sim_fm_position = 0.0
-    st.session_state.sim_fm_acceleration = 0.0
+    st.session_state.sim_fm_internal_mass = 1.0  # kg (力の運動用)
+    st.session_state.sim_fm_force = 0.0         # N (力の運動用)
+    st.session_state.sim_fm_time = 0.0          # s
+    st.session_state.sim_fm_velocity = 0.0      # m/s
+    st.session_state.sim_fm_position = 0.0      # m
+    st.session_state.sim_fm_acceleration = 0.0  # m/s^2
     st.session_state.sim_fm_running_active = False
 
 def initialize_inclined_plane_sim():
+    """斜面の傾きシミュレーション用の変数を初期化"""
     initialize_simulation_common()
     st.session_state.sim_type = "inclined_plane"
-    st.session_state.sim_ip_angle = 30.0
-    st.session_state.sim_ip_gravity_magnitude = 9.8 # 固定値 (例: 質量1kgの物体にかかる重力)
-    # Matplotlibのfigureをセッション状態で管理 (クリアと再描画のため)
-    if 'fig_ip' not in st.session_state:
-        st.session_state.fig_ip, st.session_state.ax_ip = plt.subplots()
-    else: # 既存のfigureがあればクリア
-        st.session_state.ax_ip.clear()
-
+    st.session_state.sim_ip_angle = 30.0  # 度 (斜面用)
+    st.session_state.sim_ip_gravity_magnitude = 9.8 # N (仮の重力値、質量1kgと仮定)
 
 def select_content_type(content_type):
+    """コンテンツ種別（クイズかシミュレーションか）を選択"""
     st.session_state.content_type_selected = content_type
     if content_type == "sci_sim":
+        # 理科シミュレーションが選ばれたら、次はシミュレーションタイプ選択画面へ
         st.session_state.sim_selection_stage = "choose_sim_type"
-        # クイズ関連の変数をクリアするならここ
-        quiz_keys_to_clear = ["quiz_type", "started", "class_selected", "password_ok", "agreed", "nickname"]
-        for key in quiz_keys_to_clear:
-            if key in st.session_state: del st.session_state[key]
-
+    # クイズの場合は、既存の quiz_type を設定する流れに繋げる
     elif content_type in ["sqrt", "eng"]:
         st.session_state.quiz_type = content_type
+        # クイズ選択後はシミュレーション関連のstateをクリアする（逆もまた然り）
         keys_to_delete = [k for k in st.session_state if k.startswith("sim_") or k == "sim_selection_stage"]
         for key in keys_to_delete:
             if key in st.session_state: del st.session_state[key]
-        init_quiz_state() # クイズに必要な状態を初期化
 
 def select_sim_type(sim_type_selected):
+    """実行するシミュレーションのタイプを選択し、初期化"""
     if sim_type_selected == "force_motion":
         initialize_force_motion_sim()
     elif sim_type_selected == "inclined_plane":
         initialize_inclined_plane_sim()
-    st.session_state.sim_selection_stage = "sim_running"
+    st.session_state.sim_selection_stage = "sim_running" # シミュレーション実行段階へ
 
 # --- メインのコンテンツ選択画面 ---
 if "content_type_selected" not in st.session_state:
@@ -312,12 +307,14 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
             - （このシミュレーションでは、物体の質量は1kgで一定であると仮定しています。）
             """)
             st.markdown("---")
+
             st.session_state.sim_fm_force = st.slider(
                 "物体に加える力 (N)", 0.0, 2.0,
                 st.session_state.get("sim_fm_force", 0.0), 0.1,
                 help="物体に加える力の大きさをニュートン(N)単位で設定します。0Nは力を加えていない状態です。",
                 key="fm_force_intro"
             )
+
             col_sim_buttons1, col_sim_buttons2 = st.columns(2)
             with col_sim_buttons1:
                 if st.button("シミュレーション開始/リセット 🔄", use_container_width=True, key="fm_start_reset"):
@@ -331,10 +328,14 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
             with col_sim_buttons2:
                 if st.button("シミュレーション選択に戻る", use_container_width=True, key="fm_back_to_sim_select_intro"):
                     st.session_state.sim_selection_stage = "choose_sim_type"
+                    # sim_type や個別のシミュレーション変数は保持したままで良いか、クリアするか検討
+                    # ここではクリアせず、再選択時に上書き・初期化される想定
                     st.rerun()
+
         elif st.session_state.sim_stage == "running":
             st.title("力の運動シミュレーション実行中 ⚙️")
             st.markdown("---")
+
             new_force_on_run = st.slider(
                 "加える力を変更 (N)", 0.0, 2.0,
                 st.session_state.sim_fm_force, 0.1,
@@ -344,10 +345,13 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
             if new_force_on_run != st.session_state.sim_fm_force:
                 st.session_state.sim_fm_force = new_force_on_run
                 st.session_state.sim_fm_acceleration = st.session_state.sim_fm_force / st.session_state.sim_fm_internal_mass
+
             st.info(f"現在の力: $F = {st.session_state.sim_fm_force:.1f}$ N  |  現在の加速度: $a = {st.session_state.sim_fm_acceleration:.2f}$ m/s² (質量1kgの場合)")
+
             delta_t = 0.1
             sim_active = st.session_state.get("sim_fm_running_active", False)
             button_label = "一時停止 ⏸️" if sim_active else "再生 ▶️"
+
             col_anim_ctrl1, col_anim_ctrl2, col_anim_ctrl3 = st.columns(3)
             with col_anim_ctrl1:
                 if st.button(button_label, use_container_width=True, key="fm_play_pause"):
@@ -362,17 +366,20 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
                  if st.button("シミュレーション選択に戻る", use_container_width=True, key="fm_back_to_sim_select_running"):
                     st.session_state.sim_selection_stage = "choose_sim_type"
                     st.rerun()
+
             if sim_active:
                 prev_velocity = st.session_state.sim_fm_velocity
                 st.session_state.sim_fm_velocity += st.session_state.sim_fm_acceleration * delta_t
                 st.session_state.sim_fm_position += prev_velocity * delta_t + 0.5 * st.session_state.sim_fm_acceleration * (delta_t ** 2)
                 st.session_state.sim_fm_time += delta_t
+
             st.markdown("---")
             st.subheader("シミュレーション結果")
             col1, col2, col3 = st.columns(3)
             col1.metric("経過時間 (秒)", f"{st.session_state.sim_fm_time:.1f}")
             col2.metric("現在の速度 (m/s)", f"{st.session_state.sim_fm_velocity:.2f}")
             col3.metric("現在の位置 (m)", f"{st.session_state.sim_fm_position:.2f}")
+
             st.write("物体の位置 (0m から右方向に進みます):")
             max_display_length = 60
             current_pos_for_bar = int(round(st.session_state.sim_fm_position))
@@ -382,205 +389,170 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
             st.markdown(f"<pre style='overflow-x: auto; white-space: pre;'>{display_line}</pre>", unsafe_allow_html=True)
             if current_pos_for_bar > max_display_length:
                 st.caption(f"表示範囲 ({max_display_length}m) を超えました (現在位置: {st.session_state.sim_fm_position:.1f}m)")
+
             st.markdown("---")
             if sim_active:
                 time.sleep(0.03)
                 st.rerun()
-        st.stop()
+        st.stop() # 力の運動シミュレーションここまで
 
     # --- 2. 斜面の傾きと力の分解シミュレーション ---
     elif st.session_state.get("sim_type") == "inclined_plane":
-        # MatplotlibのFigureとAxesをセッション状態から取得または新規作成
-        if 'fig_ip' not in st.session_state or 'ax_ip' not in st.session_state:
-            st.session_state.fig_ip, st.session_state.ax_ip = plt.subplots(figsize=(8,6)) # サイズ調整
-        fig = st.session_state.fig_ip
-        ax = st.session_state.ax_ip
-        ax.clear() # 描画前にクリア
-
-        if st.session_state.sim_stage == "intro":
-            st.title("斜面の傾きと力の分解シミュレーション 📐")
+        if st.session_state.sim_stage == "intro": # "intro"は共通なので流用
+            st.title("斜面の傾きと力の分解シミュレーション")
             st.markdown("---")
             st.write("""
-            このシミュレーションでは、斜面におかれた物体にはたらく力を視覚的に観察します。
-            - 「斜面の角度」を下のスライダーで変えてみましょう。
-            - 物体にはたらく**重力 (mg)**、斜面が物体を押す**垂直抗力 (N)**、そして重力が斜面に対してどのように分解されるか（**斜面に平行な分力**と**斜面に垂直な分力**）を矢印で表示します。
-            - 角度によって、これらの力の大きさと向きがどう変わるか観察しましょう。
-            - （このシミュレーションでは、物体にはたらく重力の大きさを 約9.8N と仮定しています。）
+            このシミュレーションでは、斜面におかれた物体にはたらく力を観察します。
+            - 「斜面の角度」をスライダーで変えてみましょう。
+            - 物体にはたらく「重力」、斜面が物体を押す「垂直抗力」、そして重力が斜面に対してどのように分解されるか（「斜面に平行な分力」と「斜面に垂直な分力」）を矢印の長さ（力の大きさ）で見てみましょう。
+            - 角度によって、これらの力の大きさがどう変わるか観察しましょう。
             """)
             st.markdown("---")
+
             st.session_state.sim_ip_angle = st.slider(
-                "斜面の角度 (°)", 0.0, 85.0, # 90度は描画が難しいため少し手前まで
+                "斜面の角度 (°)", 0.0, 90.0,
                 st.session_state.get("sim_ip_angle", 30.0), 1.0,
                 help="斜面の水平面に対する角度を度単位で設定します。",
-                key="ip_angle_slider" # introとrunningでスライダーを共有
+                key="ip_angle_intro"
             )
-            st.session_state.sim_stage = "running" # 角度設定後、即座に表示ステージへ
+            
+            # このシミュレーションはステップ実行やアニメーションはせず、角度変更で即時反映
+            # なので、「開始」ボタンは不要で、スライダー変更が即座に下の表示に影響する
+            st.session_state.sim_stage = "running" # 自動的に表示ステージへ
             st.rerun() # スライダーの値を即座に反映させるため
 
-        elif st.session_state.sim_stage == "running":
-            st.title("斜面の傾きと力の分解 観察中 🧐")
+        elif st.session_state.sim_stage == "running": # 表示ステージ
+            st.title("斜面の傾きと力の分解 観察中 📐")
             st.markdown("---")
 
-            angle_degrees_on_run = st.slider(
-                "斜面の角度を変更 (°)", 0.0, 85.0,
+            angle_degrees = st.slider(
+                "斜面の角度を変更 (°)", 0.0, 90.0,
                 st.session_state.sim_ip_angle, 1.0,
-                key="ip_angle_slider" # introとスライダーを共有
+                key="ip_angle_running"
             )
-            if angle_degrees_on_run != st.session_state.sim_ip_angle:
-                st.session_state.sim_ip_angle = angle_degrees_on_run
-                # スライダー変更でaxをクリアして再描画するためrerunは不要（Streamlitが自動で行う）
+            if angle_degrees != st.session_state.sim_ip_angle:
+                st.session_state.sim_ip_angle = angle_degrees
+                # st.rerun() # スライダーのon_changeを使うか、このままでもStreamlitが再実行する
 
             angle_radians = math.radians(st.session_state.sim_ip_angle)
-            gravity_magnitude = st.session_state.sim_ip_gravity_magnitude
+            gravity = st.session_state.sim_ip_gravity_magnitude # 例: 9.8 N
 
-            force_parallel = gravity_magnitude * math.sin(angle_radians)
-            force_perpendicular_to_slope = gravity_magnitude * math.cos(angle_radians)
-            normal_force_magnitude = force_perpendicular_to_slope
+            # 力の成分計算
+            force_parallel = gravity * math.sin(angle_radians) # 斜面に平行な成分
+            force_perpendicular_to_slope = gravity * math.cos(angle_radians) # 斜面に垂直な成分
+            normal_force = force_perpendicular_to_slope # 垂直抗力
 
-            # --- Matplotlibによる描画 ---
-            # 物体の位置（斜面の中腹あたり）
-            obj_pos_on_slope = 5 # 斜辺に沿った位置（描画スケール）
-            obj_x = obj_pos_on_slope * math.cos(angle_radians)
-            obj_y = obj_pos_on_slope * math.sin(angle_radians)
-
-            # 矢印のスケールファクター（力の大きさを画面上の長さに変換）
-            arrow_scale = 0.3
-
-            # 1. 斜面を描画
-            slope_length = 10
-            ax.plot([0, slope_length * math.cos(angle_radians)], [0, slope_length * math.sin(angle_radians)], 'k-', linewidth=2, label="斜面")
-            ax.plot([0, slope_length * math.cos(angle_radians)], [0,0], 'k--', linewidth=1) # 水平面
-
-            # 2. 物体を描画 (簡易な四角形)
-            box_size = 0.5 # 物体のサイズ
-            # 物体の角の座標を計算（斜面に合わせて回転）
-            rect_points_orig = np.array([
-                [-box_size, -box_size/2], [box_size, -box_size/2],
-                [box_size, box_size/2], [-box_size, box_size/2],
-                [-box_size, -box_size/2]
-            ])
-            rotation_matrix = np.array([
-                [math.cos(angle_radians), -math.sin(angle_radians)],
-                [math.sin(angle_radians), math.cos(angle_radians)]
-            ])
-            rect_points_rotated = np.dot(rect_points_orig, rotation_matrix.T)
-            rect_points_translated = rect_points_rotated + np.array([obj_x, obj_y])
-            ax.plot(rect_points_translated[:,0], rect_points_translated[:,1], 'b-', linewidth=2)
-            ax.fill(rect_points_translated[:,0], rect_points_translated[:,1], 'skyblue', alpha=0.7)
-
-
-            # 3. 力のベクトルを描画
-            # 重力 (mg) - 真下
-            ax.arrow(obj_x, obj_y, 0, -gravity_magnitude * arrow_scale,
-                     head_width=0.2, head_length=0.3, fc='red', ec='red', length_includes_head=True, label=f"重力 ({gravity_magnitude:.1f}N)")
-
-            # 垂直抗力 (N) - 斜面に垂直上向き
-            # 始点を少しずらして見やすくする（物体と斜面の接点から）
-            normal_force_start_x = obj_x - (box_size/2) * math.sin(angle_radians)
-            normal_force_start_y = obj_y - (box_size/2) * math.cos(angle_radians)
-            ax.arrow(normal_force_start_x, normal_force_start_y,
-                     normal_force_magnitude * arrow_scale * math.sin(angle_radians),  # dx
-                     normal_force_magnitude * arrow_scale * math.cos(angle_radians),  # dy
-                     head_width=0.2, head_length=0.3, fc='green', ec='green', length_includes_head=True, label=f"垂直抗力 ({normal_force_magnitude:.1f}N)")
-
-            # 重力の斜面に平行な成分 (mg sinθ) - 斜面下向き
-            ax.arrow(obj_x, obj_y,
-                     force_parallel * arrow_scale * math.cos(angle_radians),      # dx
-                     force_parallel * arrow_scale * math.sin(angle_radians),      # dy
-                     head_width=0.2, head_length=0.3, fc='purple', ec='purple', linestyle='--', length_includes_head=True, label=f"斜面平行分力 ({force_parallel:.1f}N)")
-
-            # 重力の斜面に垂直な成分 (mg cosθ) - 斜面に対して垂直下向き
-            ax.arrow(obj_x, obj_y,
-                     -force_perpendicular_to_slope * arrow_scale * math.sin(angle_radians), # dx
-                     -force_perpendicular_to_slope * arrow_scale * math.cos(angle_radians), # dy
-                     head_width=0.2, head_length=0.3, fc='orange', ec='orange', linestyle='--', length_includes_head=True, label=f"斜面垂直分力 ({force_perpendicular_to_slope:.1f}N)")
-
-            # グラフの設定
-            ax.set_xlabel("水平方向の位置 (m)")
-            ax.set_ylabel("垂直方向の位置 (m)")
-            ax.set_title(f"斜面の角度: {st.session_state.sim_ip_angle:.1f}° における力の分解")
-            ax.axhline(0, color='black', linewidth=0.5)
-            ax.axvline(0, color='black', linewidth=0.5)
-            ax.grid(True, linestyle=':', alpha=0.7)
-            ax.set_aspect('equal', adjustable='box') # アスペクト比を1:1に
-
-            # 描画範囲の調整（力の矢印が収まるように）
-            # obj_y と gravity_magnitude * arrow_scale を考慮
-            min_y_limit = min(0, obj_y - gravity_magnitude * arrow_scale - 1)
-            max_y_limit = max(obj_y + normal_force_magnitude * arrow_scale + 1, slope_length * math.sin(angle_radians) + 1)
-            max_x_limit = max(obj_x + 2, slope_length * math.cos(angle_radians) + 1) # 右方向
-            min_x_limit = min(obj_x - 2, -1) # 左方向
-            
-            ax.set_xlim(min_x_limit, max_x_limit)
-            ax.set_ylim(min_y_limit, max_y_limit)
-            
-            # 凡例の表示位置を調整
-            ax.legend(loc='upper right', bbox_to_anchor=(1.45, 1.0)) # グラフの外の右上に配置
-            fig.tight_layout(rect=[0, 0, 0.8, 1]) # 凡例スペースを確保
-
-            st.pyplot(fig)
-            # --- Matplotlib描画ここまで ---
-
+            st.info(f"斜面の角度: {st.session_state.sim_ip_angle:.1f}°")
             st.markdown("---")
-            st.subheader("各力の大きさ")
-            col_f1, col_f2, col_f3 = st.columns(3)
-            col_f1.metric("重力 ($mg$)", f"{gravity_magnitude:.2f} N")
-            col_f2.metric("垂直抗力 ($N$)", f"{normal_force_magnitude:.2f} N")
-            col_f3.metric("斜面平行分力 ($mg \sin \\theta$)", f"{force_parallel:.2f} N")
-            # st.metric("斜面垂直分力 ($mg \cos \\theta$)", f"{force_perpendicular_to_slope:.2f} N")
+            st.subheader("力の可視化（矢印の長さで力の大きさを表現）")
+
+            # 簡易的な力の可視化 (値とテキスト)
+            max_arrow_length = 20 # 表示上の矢印の最大長
+
+            def get_arrow_bar(force_value, total_gravity, symbol):
+                if total_gravity == 0: return symbol # total_gravityが0なら比率計算不可
+                length = int(round((abs(force_value) / total_gravity) * max_arrow_length))
+                return symbol * length
+
+            gravity_bar = get_arrow_bar(gravity, gravity, "⬇️")
+            normal_force_bar = get_arrow_bar(normal_force, gravity, "⬆️") # 向きは概念
+            parallel_force_bar = get_arrow_bar(force_parallel, gravity, "↘️") # 向きは概念
+
+            st.write(f"**重力 ($mg$)**: {gravity:.2f} N")
+            st.markdown(f"<pre>{gravity_bar} (真下)</pre>", unsafe_allow_html=True)
+
+            st.write(f"**斜面に垂直な分力 ($mg \cos \\theta$)**: {force_perpendicular_to_slope:.2f} N")
+            # 垂直抗力はこの分力と釣り合う
+            st.write(f"**垂直抗力 ($N$)**: {normal_force:.2f} N")
+            st.markdown(f"<pre>{normal_force_bar} (斜面から垂直上向き)</pre>", unsafe_allow_html=True)
+            
+            st.write(f"**斜面に平行な分力 ($mg \sin \\theta$)**: {force_parallel:.2f} N")
+            st.markdown(f"<pre>{parallel_force_bar} (斜面下向き)</pre>", unsafe_allow_html=True)
+
+            # 簡易的な斜面と台車の図 (テキストアート)
+            st.markdown("---")
+            st.write("【簡易図】")
+            slope_char = "/" if st.session_state.sim_ip_angle > 0 else "─"
+            padding = " " * int(st.session_state.sim_ip_angle / 6) # 角度に応じて少しずらす
+            
+            # 描画領域を確保する（高さは固定、幅は角度による）
+            # 簡易図なので、正確な描画は難しい
+            if st.session_state.sim_ip_angle == 0:
+                 diagram_html = f"""
+<pre style="font-size: 16px; line-height: 1.0;">
+{padding}      🚗
+{padding}  {slope_char * 15}
+</pre>
+"""
+            elif st.session_state.sim_ip_angle == 90:
+                diagram_html = f"""
+<pre style="font-size: 16px; line-height: 1.0;">
+{padding}      │
+{padding}      │🚗
+{padding}      │
+{padding}      │
+{padding}      . (地面)
+</pre>
+"""
+            else:
+                # 簡単な表現
+                spaces_before_car = " " * (5 - int(angle_radians * 2))
+                slope_line = "".join([ " " * i + slope_char for i in range(5)])
+
+                diagram_html = f"""
+<pre style="font-size: 16px; line-height: 1.0;">
+{padding}{spaces_before_car}🚗
+{padding}{slope_line}
+</pre>
+"""
+            st.markdown(diagram_html, unsafe_allow_html=True)
+            st.caption(f"角度 {st.session_state.sim_ip_angle:.0f}° の斜面のイメージ")
 
 
             st.markdown("---")
             if st.button("シミュレーション選択に戻る", use_container_width=True, key="ip_back_to_sim_select"):
                 st.session_state.sim_selection_stage = "choose_sim_type"
-                # axをクリアしておくことで、次回選択時に古い描画が残らないようにする
-                st.session_state.ax_ip.clear()
                 st.rerun()
         st.stop() # 斜面の傾きシミュレーションここまで
     st.stop() # 理科シミュレーション処理全体ここまで
-
 
 # --- ここから下はクイズ用のコード (変更なし) ---
 # === Google Sheets 連携 (クイズ用) ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_available = False
-sheet = None # 初期化
+sheet = None
 if "gcp_service_account" in st.secrets:
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
         client = gspread.authorize(creds)
-        spreadsheet = client.open("ScoreBoard") # スプレッドシート名を正確に指定
+        spreadsheet = client.open("ScoreBoard")
         creds_available = True
         
-        # quiz_type が "sqrt" または "eng" の場合にのみシートを設定
-        if st.session_state.get("quiz_type") == "sqrt":
-            sheet = spreadsheet.get_worksheet(1) # Sheet2 (インデックス1)
+        if st.session_state.get("quiz_type") == "sqrt": # quiz_type はクイズ選択時に設定される
+            sheet = spreadsheet.get_worksheet(1)
         elif st.session_state.get("quiz_type") == "eng":
-            sheet = spreadsheet.get_worksheet(2) # Sheet3 (インデックス2)
+            sheet = spreadsheet.get_worksheet(2)
         # quiz_typeがNone (まだクイズが選択されていない、またはシミュレーションモード) の場合、
         # または未定義のクイズタイプの場合、シートはNoneのまま。
-        # elif st.session_state.get("quiz_type") is not None: # sqrt, eng以外でNoneでもない場合(将来的な拡張用)
-        #      st.warning(f"未対応のクイズタイプ ({st.session_state.quiz_type}) のため、デフォルトシートを参照します。")
-        #      sheet = spreadsheet.get_worksheet(0)
-
+        # elif st.session_state.get("quiz_type") is not None: 
+        #      st.warning(f"未対応のクイズタイプ ({st.session_state.quiz_type}) のため、ランキングは利用できません。")
 
     except Exception as e:
         st.error(f"Google Sheets認証またはシート取得に問題があります: {e}")
         creds_available = False
 else:
-    # クイズが選択されている場合のみ警告を表示
-    if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
+    if st.session_state.get("content_type_selected") in ["sqrt", "eng"]: # クイズ選択時のみ警告
         st.warning("Google Sheetsの認証情報が設定されていません。ランキング機能は利用できません。")
 
 if not creds_available or sheet is None:
-    # クイズが選択されているが、上記でシートが設定されなかった場合にダミーシートを設定
-    if st.session_state.get("content_type_selected") in ["sqrt", "eng"] and sheet is None:
+    # クイズが選択されているがシートがない場合のみダミーシート
+    if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
         class DummySheet:
             def append_row(self, data): st.info("（ランキング機能無効：スコアは保存されません）")
             def get_all_records(self): return []
         sheet = DummySheet()
     elif sheet is None : # クイズ以外でsheetがNoneなら、そのままNoneで良い（エラー回避）
-        pass # 何もしない
+        pass
 
 
 # === 効果音 URL ===
@@ -617,23 +589,18 @@ def init_quiz_state(): # 関数名をより明確に
         # asked_sqrt_... のようなものも必要ならここに追加
         current_problem_display_choices=[],
         # ページ制御用 (クイズのフローで使用)
-        class_selected=None, # クイズ選択時にNoneにリセットされるべき
-        password_ok=False,   # 同上
-        agreed=False,        # 同上
+        class_selected=None,
+        password_ok=False,
+        agreed=False,
     )
     for k, v in defaults.items():
-        if k not in st.session_state: # 既存の値を上書きしない
+        if k not in st.session_state:
             st.session_state[k] = v
-        elif st.session_state.get(k) is None and k in ["class_selected", "password_ok", "agreed", "nickname"]: # クイズ開始時にリセットしたいもの
-             st.session_state[k] = v
-
 
 # init_quiz_state() はクイズフローに入る直前で呼び出すのが適切かもしれない
-if st.session_state.get("content_type_selected") in ["sqrt", "eng"] and not st.session_state.get("quiz_flow_initialized", False) :
+# ここではグローバルに一度呼び出す形にしておく
+if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
     init_quiz_state()
-    st.session_state.quiz_flow_initialized = True # 初期化済みフラグ
-elif st.session_state.get("content_type_selected") != "sci_sim":
-    st.session_state.quiz_flow_initialized = False # クイズ以外ならフラグ解除
 
 
 # --- 問題生成（√問題 or 英語問題）---
@@ -667,7 +634,8 @@ def make_problem():
     elif st.session_state.get("quiz_type") == "eng":
         quiz_data = ENG_QUIZZES_DATA
         session_key = "asked_eng_indices_this_session"
-        if session_key not in st.session_state: # 安全策
+        # セッションキーが存在しない場合のエラーを防ぐため、デフォルト値を設定
+        if session_key not in st.session_state:
             st.session_state[session_key] = []
 
         available_quizzes_with_indices = [
@@ -686,9 +654,8 @@ def make_problem():
 # === スコア保存／取得 (クイズ用) ===
 def save_score(name, score_val):
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    # sheetがNone (シミュレーションモード等) やDummySheetの場合は保存しない
-    if sheet is None or isinstance(sheet, DummySheet):
-        st.info(f"スコア保存試行 (実際には保存されません): {name}, {score_val}, {ts}")
+    if isinstance(sheet, DummySheet) or sheet is None:
+        st.info(f"スコア保存試行 (デバッグ用): {name}, {score_val}, {ts}（実際には保存されません）")
         return
     try:
         sheet.append_row([name, score_val, ts])
@@ -696,8 +663,8 @@ def save_score(name, score_val):
         st.error(f"スコアの保存に失敗しました: {e}")
 
 def top3():
-    if sheet is None or isinstance(sheet, DummySheet):
-        return [] # ランキングデータなし
+    if isinstance(sheet, DummySheet) or sheet is None:
+        return []
     try:
         records = sheet.get_all_records()
         valid_records = []
@@ -711,12 +678,12 @@ def top3():
                 elif not isinstance(score_value, int): score_value = 0
                 r["score"] = score_value
                 valid_records.append(r)
-            except ValueError: # int変換エラーなど
+            except ValueError:
                 r["score"] = 0
-                valid_records.append(r) # スコア0として追加
+                valid_records.append(r)
         return sorted(valid_records, key=lambda x: x.get("score", 0), reverse=True)[:3]
     except Exception as e:
-        print(f"ランキング取得エラー: {e}") # コンソールにエラー表示
+        print(f"ランキング取得エラー: {e}")
         return []
 
 # --- クイズ用のページ制御フロー ---
@@ -736,10 +703,8 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
     if not st.session_state.get("password_ok", False):
         st.text_input("Password：作成者の担当クラスは？", type="password", key="pw_input")
         def check_password():
-            if st.session_state.pw_input == "3R3": # パスワード
-                st.session_state.password_ok = True
-            else:
-                st.error("パスワードが違います")
+            if st.session_state.pw_input == "3R3": st.session_state.password_ok = True
+            else: st.error("パスワードが違います")
         st.button("確認", on_click=check_password)
         st.stop()
 
@@ -757,27 +722,24 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
         st.stop()
 
     if not st.session_state.get("nickname"):
-        if not st.session_state.get("played_name", False): # 一度だけ再生
+        if not st.session_state.get("played_name", False):
             play_sound(NAME_URL)
             st.session_state.played_name = True
         st.title("1分間クイズ")
         st.text_input("ニックネームを入力してください", key="nick_input", max_chars=12)
         def set_nickname():
             val = st.session_state.nick_input.strip()
-            if val:
-                st.session_state.nickname = val
-            else:
-                st.warning("ニックネームを入力してください。")
+            if val: st.session_state.nickname = val
+            else: st.warning("ニックネームを入力してください。")
         st.button("決定", on_click=set_nickname)
         st.stop()
 
     # === クイズ本体の表示ロジック ===
     if not st.session_state.get("started", False):
         quiz_labels = {"sqrt": "平方根クイズ", "eng": "中3英語クイズ"}
-        quiz_label = quiz_labels.get(st.session_state.quiz_type, "クイズ") # quiz_typeは設定済みのはず
+        quiz_label = quiz_labels.get(st.session_state.quiz_type, "クイズ")
         st.title(f"{st.session_state.nickname} さんの{quiz_label}")
         st.write("**ルール**: 制限時間1分、正解+1点、不正解-1点")
-
         def start_quiz():
             play_sound(START_URL)
             st.session_state.started = True
@@ -787,27 +749,22 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
             st.session_state.answered = False
             st.session_state.is_correct = None
             st.session_state.user_choice = ""
-            st.session_state.saved = False # スコア保存フラグ
-            # クイズ種別ごとの状態リセット
-            if st.session_state.quiz_type == "eng":
+            st.session_state.saved = False
+            if st.session_state.quiz_type == "eng": # 英語クイズの場合のみリセット
                 st.session_state.asked_eng_indices_this_session = []
                 st.session_state.incorrectly_answered_eng_questions = []
-            # 他のクイズタイプも同様に初期化処理を追加
 
-            st.session_state.current_problem = make_problem() # 最初の問題を取得
-
-            if st.session_state.current_problem is None: # 問題が取得できなかった場合
+            st.session_state.current_problem = make_problem()
+            if st.session_state.current_problem is None:
                 st.session_state.current_problem_display_choices = []
-                # st.error("問題の読み込みに失敗しました。管理者にお問い合わせください。") # 必要に応じて
             elif st.session_state.quiz_type == "eng":
                 problem_data = st.session_state.current_problem
                 if "choices" in problem_data and problem_data["choices"]:
                     shuffled_choices = random.sample(problem_data["choices"], len(problem_data["choices"]))
                     st.session_state.current_problem_display_choices = shuffled_choices
-                else:
-                    st.session_state.current_problem_display_choices = [] # 選択肢がない場合
+                else: st.session_state.current_problem_display_choices = []
             elif st.session_state.quiz_type == "sqrt":
-                _, _, sqrt_choices = st.session_state.current_problem # a, correct, choices
+                _, _, sqrt_choices = st.session_state.current_problem
                 st.session_state.current_problem_display_choices = sqrt_choices
         st.button("スタート！", on_click=start_quiz)
         st.stop()
@@ -818,21 +775,18 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
     if st.session_state.get("start_time") is not None:
         elapsed_time = int(current_time - st.session_state.start_time)
     remaining = max(0, 60 - elapsed_time)
-
     st.markdown(f"## ⏱️ {st.session_state.nickname} さんのタイムアタック！")
     mm_display, ss_display = divmod(remaining, 60)
     st.info(f"残り {mm_display:02d}:{ss_display:02d} ｜ スコア {st.session_state.score} ｜ 挑戦 {st.session_state.total}")
 
-    if remaining == 0: # --- タイムアップ処理 ---
-        if not st.session_state.get("time_up_processed", False): # タイムアップ処理を一度だけ実行
+    if remaining == 0:
+        if not st.session_state.get("time_up_processed", False):
             st.warning("⏰ タイムアップ！")
             st.write(f"最終スコア: {st.session_state.score}点 ({st.session_state.total}問)")
-
             incorrect_questions = []
             if st.session_state.quiz_type == "eng" and "incorrectly_answered_eng_questions" in st.session_state:
                 incorrect_questions = st.session_state.incorrectly_answered_eng_questions
-            
-            if incorrect_questions: # 英語クイズで間違えた問題があった場合のみ表示
+            if incorrect_questions:
                 st.markdown("---")
                 st.subheader("📝 間違えた問題の復習 (英語)")
                 for i, item in enumerate(incorrect_questions):
@@ -844,30 +798,22 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
                     with container.expander("💡 解説を見る"):
                         st.markdown(item['explanation'])
                 st.markdown("---")
-
             if not st.session_state.saved:
                 full_name = f"{st.session_state.class_selected}_{st.session_state.nickname}"
                 save_score(full_name, st.session_state.score)
                 st.session_state.saved = True
-                
                 ranking = top3()
                 is_in_top3 = False
                 if ranking:
                     if len(ranking) < 3 or st.session_state.score >= ranking[min(len(ranking)-1, 2)].get("score", -float('inf')):
-                        # 自分の名前とスコアが実際にリストに含まれているか確認
                         is_in_top3 = any(r.get("name") == full_name and r.get("score") == st.session_state.score for r in ranking[:3])
                         if not is_in_top3 and (len(ranking) <3 or st.session_state.score >= ranking[min(len(ranking)-1, 2)].get("score", -float('inf'))):
-                             is_in_top3 = True # 暫定的に入れる場合
-                else: # ランキングが空または取得失敗ならトップ扱い
-                    is_in_top3 = True
-
-                if is_in_top3:
-                    play_sound(RESULT1_URL)
-                else:
-                    play_sound(RESULT2_URL)
+                            is_in_top3 = True
+                else: is_in_top3 = True
+                if is_in_top3: play_sound(RESULT1_URL)
+                else: play_sound(RESULT2_URL)
                 st.balloons()
-            st.session_state.time_up_processed = True # タイムアップ処理完了
-
+            st.session_state.time_up_processed = True
         st.write("### 🏆 歴代ランキング（上位3名）")
         current_ranking_data = top3()
         if current_ranking_data:
@@ -875,47 +821,46 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
                 name_display = r_data.get("name", "名無し")
                 score_display = r_data.get("score", 0)
                 st.write(f"{i}. {name_display} — {score_display}点")
-        else:
-            st.write("まだランキングデータがありません。")
+        else: st.write("まだランキングデータがありません。")
 
         def restart_quiz_flow(): # クイズ専用のやり直し関数
-            keys_to_remove = [ # ニックネーム入力からやり直すためのキー
+            keys_to_remove = [
                 "started", "start_time", "score", "total", "current_problem",
                 "answered", "is_correct", "user_choice", "saved", "time_up_processed",
-                "current_problem_display_choices", "nick_input", "nickname", "played_name"
+                "current_problem_display_choices",
+                "nick_input", "nickname", # ニックネームから再入力
+                # クイズ種別ごとの状態もクリア
+                "asked_eng_indices_this_session", "incorrectly_answered_eng_questions",
             ]
-            if st.session_state.quiz_type == "eng":
-                keys_to_remove.extend(["asked_eng_indices_this_session", "incorrectly_answered_eng_questions"])
-            # class_selected, password_ok, agreed, content_type_selected, quiz_type は保持してニックネームから
-
+            # class_selected, password_ok, agreed, content_type_selected, quiz_type は保持
             for key in keys_to_remove:
                 if key in st.session_state: del st.session_state[key]
-            # init_quiz_state() を呼ぶと nickname="" などで初期化される
-            init_quiz_state() # played_name も False に戻る
+            init_quiz_state() # ニックネームなどが""で再初期化される
             st.rerun()
-
-        st.button("🔁 もう一度挑戦（ニックネーム入力から）", on_click=restart_quiz_flow)
-        
-        if st.button("最初の選択に戻る", key="quiz_back_to_home_at_end"):
+        st.button("🔁 もう一度挑戦", on_click=restart_quiz_flow)
+        # ホームに戻るボタン
+        if st.button("最初の選択に戻る", key="quiz_back_to_home"):
             keys_to_clear_for_home = [
                 "started", "start_time", "score", "total", "current_problem",
                 "answered", "is_correct", "user_choice", "saved", "time_up_processed",
-                "current_problem_display_choices", "nick_input", "nickname", "played_name",
+                "current_problem_display_choices",
+                "nick_input", "nickname",
                 "asked_eng_indices_this_session", "incorrectly_answered_eng_questions",
                 "class_selected", "password_ok", "agreed",
-                "quiz_type", "content_type_selected", "quiz_flow_initialized"
+                "quiz_type", "content_type_selected"
             ]
             for key in keys_to_clear_for_home:
                  if key in st.session_state: del st.session_state[key]
             st.rerun()
         st.stop()
 
-    # --- 問題表示と解答プロセス (クイズ用、タイムアップ前) ---
+    # --- 問題表示と解答プロセス (クイズ用) ---
     problem_data = st.session_state.current_problem
-    if problem_data is None: # 全問解いた場合や問題がない場合
+    if problem_data is None: # 全問解いた場合など
         st.warning("全ての問題を解きました！お疲れ様でした。")
-        st.session_state.start_time = time.time() - 61 # 強制的にタイムアップさせる
-        st.rerun()
+        # 強制的にタイムアップ処理に移行させるか、結果表示ボタンを出す
+        st.session_state.start_time = time.time() - 61 # 経過時間を60秒超にする
+        st.rerun() # タイムアップ処理が走るようにする
         st.stop()
 
     question_text_to_display = ""
@@ -931,21 +876,15 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
 
     st.subheader(question_text_to_display)
     choices_for_radio = st.session_state.current_problem_display_choices
-
     if not st.session_state.answered:
         if not choices_for_radio:
             st.error("選択肢が読み込めませんでした。ページを更新するか、やり直してください。")
         else:
-            user_choice = st.radio(
-                "選択肢を選んでください",
-                choices_for_radio,
-                key=f"radio_choice_{st.session_state.total}" # 問題ごとにキーをユニークに
-            )
+            user_choice = st.radio("選択肢を選んでください", choices_for_radio, key=f"radio_choice_{st.session_state.total}")
             if st.button("解答する", key=f"answer_button_{st.session_state.total}"):
                 st.session_state.answered = True
                 st.session_state.user_choice = user_choice
                 st.session_state.total += 1
-
                 if st.session_state.user_choice == correct_answer_string:
                     st.session_state.score += 1
                     st.session_state.is_correct = True
@@ -965,36 +904,30 @@ if st.session_state.get("content_type_selected") in ["sqrt", "eng"]:
                             "correct_answer": correct_answer_string,
                             "explanation": current_q_data["explanation"]
                         })
-                st.rerun() # 解答後に即座に再実行して結果表示に移行
+                st.rerun()
 
-    # --- 結果表示と次の問題へのボタン (クイズ用、解答済みの場合) ---
+    # --- 結果表示と次の問題へのボタン (クイズ用) ---
     if st.session_state.answered:
-        if st.session_state.is_correct:
-            st.success("🎉 正解！ +1点")
-        else:
-            st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
-
-        def next_q(): # クイズの次の問題へ
+        if st.session_state.is_correct: st.success("🎉 正解！ +1点")
+        else: st.error(f"😡 不正解！ 正解は {correct_answer_string} でした —1点")
+        def next_q():
             st.session_state.current_problem = make_problem()
-            st.session_state.answered = False # これをリセット！
+            st.session_state.answered = False
             st.session_state.is_correct = None
-            st.session_state.user_choice = "" # リセット
-
+            st.session_state.user_choice = ""
             if st.session_state.current_problem is None: # 次の問題がない場合
                 st.session_state.current_problem_display_choices = []
-                # 全問解いたのでタイムアップ処理へ（残り時間があっても）
+                # 全問解いたのでタイムアップ処理へ
                 st.session_state.start_time = time.time() - 61 # 経過時間を60秒超にする
             elif st.session_state.quiz_type == "eng":
                 eng_problem_data = st.session_state.current_problem
                 if "choices" in eng_problem_data and eng_problem_data["choices"]:
                     shuffled_choices = random.sample(eng_problem_data["choices"], len(eng_problem_data["choices"]))
                     st.session_state.current_problem_display_choices = shuffled_choices
-                else:
-                    st.session_state.current_problem_display_choices = []
+                else: st.session_state.current_problem_display_choices = []
             elif st.session_state.quiz_type == "sqrt":
                 _, _, sqrt_choices = st.session_state.current_problem
                 st.session_state.current_problem_display_choices = sqrt_choices
-            st.rerun() # 次の問題へボタンで再実行
-
+            st.rerun()
         st.button("次の問題へ", on_click=next_q, key=f"next_q_button_{st.session_state.total}")
-        st.stop() # 結果表示後、次の問題へボタンの操作を待つために停止
+        st.stop()
