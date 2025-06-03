@@ -398,124 +398,188 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
 
     # --- 2. 斜面の傾きと力の分解シミュレーション ---
     elif st.session_state.get("sim_type") == "inclined_plane":
-        if st.session_state.sim_stage == "intro": # "intro"は共通なので流用
-            st.title("斜面の傾きと力の分解シミュレーション")
+        # MatplotlibのFigureとAxesをセッション状態から取得または新規作成
+        if 'fig_ip' not in st.session_state or 'ax_ip' not in st.session_state or not plt.fignum_exists(st.session_state.fig_ip.number):
+            st.session_state.fig_ip, st.session_state.ax_ip = plt.subplots(figsize=(8, 7)) # 少し縦長に
+        fig = st.session_state.fig_ip
+        ax = st.session_state.ax_ip
+        ax.clear() # 描画前にクリア
+
+        if st.session_state.sim_stage == "intro":
+            st.title("斜面の傾きと力の分解シミュレーション 📐")
             st.markdown("---")
             st.write("""
-            このシミュレーションでは、斜面におかれた物体にはたらく力を観察します。
-            - 「斜面の角度」をスライダーで変えてみましょう。
-            - 物体にはたらく「重力」、斜面が物体を押す「垂直抗力」、そして重力が斜面に対してどのように分解されるか（「斜面に平行な分力」と「斜面に垂直な分力」）を矢印の長さ（力の大きさ）で見てみましょう。
-            - 角度によって、これらの力の大きさがどう変わるか観察しましょう。
+            このシミュレーションでは、斜面におかれた物体にはたらく力を視覚的に観察します。
+            - 「斜面の角度」を下のスライダーで変えてみましょう。
+            - 物体にはたらく**重力 (mg)**、斜面が物体を押す**垂直抗力 (N)**、そして物体を斜面に沿って滑らせようとする**斜面方向の力**を矢印で表示します。
+            - 角度によって、これらの力の大きさと向きがどう変わるか観察しましょう。
+            - （このシミュレーションでは、物体にはたらく重力の大きさを 約9.8N と仮定しています。）
             """)
             st.markdown("---")
-
             st.session_state.sim_ip_angle = st.slider(
-                "斜面の角度 (°)", 0.0, 90.0,
+                "斜面の角度 (°)", 0.0, 85.0, # 90度は描画が難しいため少し手前まで
                 st.session_state.get("sim_ip_angle", 30.0), 1.0,
                 help="斜面の水平面に対する角度を度単位で設定します。",
-                key="ip_angle_intro"
+                key="ip_angle_slider_intro" # キーを明確に
             )
-            
-            # このシミュレーションはステップ実行やアニメーションはせず、角度変更で即時反映
-            # なので、「開始」ボタンは不要で、スライダー変更が即座に下の表示に影響する
-            st.session_state.sim_stage = "running" # 自動的に表示ステージへ
-            st.rerun() # スライダーの値を即座に反映させるため
+            st.session_state.sim_stage = "running" # 角度設定後、即座に表示ステージへ
+            st.rerun()
 
-        elif st.session_state.sim_stage == "running": # 表示ステージ
-            st.title("斜面の傾きと力の分解 観察中 📐")
+        elif st.session_state.sim_stage == "running":
+            st.title("斜面の傾きと力の分解 観察中 🧐")
             st.markdown("---")
 
-            angle_degrees = st.slider(
-                "斜面の角度を変更 (°)", 0.0, 90.0,
+            angle_degrees_on_run = st.slider(
+                "斜面の角度を変更 (°)", 0.0, 85.0, # 90度は避ける
                 st.session_state.sim_ip_angle, 1.0,
-                key="ip_angle_running"
+                key="ip_angle_slider_running"
             )
-            if angle_degrees != st.session_state.sim_ip_angle:
-                st.session_state.sim_ip_angle = angle_degrees
-                # st.rerun() # スライダーのon_changeを使うか、このままでもStreamlitが再実行する
+            if angle_degrees_on_run != st.session_state.sim_ip_angle:
+                st.session_state.sim_ip_angle = angle_degrees_on_run
+                # スライダー変更でaxをクリアして再描画するためrerunは不要（Streamlitが自動で行う）
 
             angle_radians = math.radians(st.session_state.sim_ip_angle)
-            gravity = st.session_state.sim_ip_gravity_magnitude # 例: 9.8 N
+            gravity_magnitude = st.session_state.sim_ip_gravity_magnitude
 
             # 力の成分計算
-            force_parallel = gravity * math.sin(angle_radians) # 斜面に平行な成分
-            force_perpendicular_to_slope = gravity * math.cos(angle_radians) # 斜面に垂直な成分
-            normal_force = force_perpendicular_to_slope # 垂直抗力
+            force_parallel_component = gravity_magnitude * math.sin(angle_radians) # 斜面に平行な成分
+            force_perpendicular_component = gravity_magnitude * math.cos(angle_radians) # 重力の斜面に垂直な成分
+            normal_force_magnitude = force_perpendicular_component # 垂直抗力
 
-            st.info(f"斜面の角度: {st.session_state.sim_ip_angle:.1f}°")
-            st.markdown("---")
-            st.subheader("力の可視化（矢印の長さで力の大きさを表現）")
+            # --- Matplotlibによる描画 ---
+            # 物体の中心座標 (描画の基準点)
+            obj_center_x = 5.0 # 適当なX座標
+            obj_center_y = 5.0 # 適当なY座標 (これが斜面上のYではない)
 
-            # 簡易的な力の可視化 (値とテキスト)
-            max_arrow_length = 20 # 表示上の矢印の最大長
+            # 矢印のスケールファクター（力の大きさを画面上の長さに変換）
+            arrow_scale = 0.3 if gravity_magnitude > 0 else 0 # 重力が0なら矢印も0
 
-            def get_arrow_bar(force_value, total_gravity, symbol):
-                if total_gravity == 0: return symbol # total_gravityが0なら比率計算不可
-                length = int(round((abs(force_value) / total_gravity) * max_arrow_length))
-                return symbol * length
-
-            gravity_bar = get_arrow_bar(gravity, gravity, "⬇️")
-            normal_force_bar = get_arrow_bar(normal_force, gravity, "⬆️") # 向きは概念
-            parallel_force_bar = get_arrow_bar(force_parallel, gravity, "↘️") # 向きは概念
-
-            st.write(f"**重力 ($mg$)**: {gravity:.2f} N")
-            st.markdown(f"<pre>{gravity_bar} (真下)</pre>", unsafe_allow_html=True)
-
-            st.write(f"**斜面に垂直な分力 ($mg \cos \\theta$)**: {force_perpendicular_to_slope:.2f} N")
-            # 垂直抗力はこの分力と釣り合う
-            st.write(f"**垂直抗力 ($N$)**: {normal_force:.2f} N")
-            st.markdown(f"<pre>{normal_force_bar} (斜面から垂直上向き)</pre>", unsafe_allow_html=True)
+            # 1. 斜面を描画
+            # 斜面の始点を計算 (物体が乗るように)
+            slope_visual_length = 10 # 見た目の斜面の長さ
+            hypotenuse_to_obj_center_projection = obj_center_y / math.sin(angle_radians) if angle_radians > 0 else obj_center_x
             
-            st.write(f"**斜面に平行な分力 ($mg \sin \\theta$)**: {force_parallel:.2f} N")
-            st.markdown(f"<pre>{parallel_force_bar} (斜面下向き)</pre>", unsafe_allow_html=True)
+            # 斜面の始点と終点
+            if angle_radians > 0.01: # 0度に近い場合は水平線として扱う
+                slope_start_x = obj_center_x - (obj_center_y / math.tan(angle_radians)) if angle_radians > 0 else obj_center_x - slope_visual_length / 2
+                slope_start_y = 0
+                slope_end_x = slope_start_x + slope_visual_length * math.cos(angle_radians)
+                slope_end_y = slope_start_y + slope_visual_length * math.sin(angle_radians)
+            else: # ほぼ水平
+                slope_start_x = obj_center_x - slope_visual_length / 2
+                slope_start_y = obj_center_y # 物体のY座標に合わせる
+                slope_end_x = obj_center_x + slope_visual_length / 2
+                slope_end_y = obj_center_y
 
-            # 簡易的な斜面と台車の図 (テキストアート)
-            st.markdown("---")
-            st.write("【簡易図】")
-            slope_char = "/" if st.session_state.sim_ip_angle > 0 else "─"
-            padding = " " * int(st.session_state.sim_ip_angle / 6) # 角度に応じて少しずらす
+            ax.plot([slope_start_x, slope_end_x], [slope_start_y, slope_end_y], 'k-', linewidth=3, label="斜面")
+            # 水平線 (斜面の始点から)
+            ax.plot([slope_start_x, slope_end_x], [slope_start_y, slope_start_y], 'k--', linewidth=1)
+
+            # 物体の斜面上の実際の中心を再計算 (斜面と接するように)
+            # 描画上、物体を斜面に「乗せる」ために、物体の底面が斜線に合うように調整
+            box_height_visual = 1.0 # 見た目の箱の高さ
             
-            # 描画領域を確保する（高さは固定、幅は角度による）
-            # 簡易図なので、正確な描画は難しい
-            if st.session_state.sim_ip_angle == 0:
-                 diagram_html = f"""
-<pre style="font-size: 16px; line-height: 1.0;">
-{padding}      🚗
-{padding}  {slope_char * 15}
-</pre>
-"""
-            elif st.session_state.sim_ip_angle == 90:
-                diagram_html = f"""
-<pre style="font-size: 16px; line-height: 1.0;">
-{padding}      │
-{padding}      │🚗
-{padding}      │
-{padding}      │
-{padding}      . (地面)
-</pre>
-"""
-            else:
-                # 簡単な表現
-                spaces_before_car = " " * (5 - int(angle_radians * 2))
-                slope_line = "".join([ " " * i + slope_char for i in range(5)])
+            # 物体は斜線上に中心があるのではなく、底面が斜線上にある。
+            # そのため、力の作用点としての中心は、斜線から垂直に box_height_visual / 2 だけ上。
+            actual_obj_center_x = obj_center_x # Xは固定で考える
+            actual_obj_center_y = slope_start_y + (actual_obj_center_x - slope_start_x) * math.tan(angle_radians) + (box_height_visual / 2) * math.cos(angle_radians) if angle_radians > 0.01 else obj_center_y
 
-                diagram_html = f"""
-<pre style="font-size: 16px; line-height: 1.0;">
-{padding}{spaces_before_car}🚗
-{padding}{slope_line}
-</pre>
-"""
-            st.markdown(diagram_html, unsafe_allow_html=True)
-            st.caption(f"角度 {st.session_state.sim_ip_angle:.0f}° の斜面のイメージ")
+            # 2. 物体を描画 (簡易な四角形)
+            box_width_visual = 1.5
+            # 物体の角の座標を計算（斜面に合わせて回転）
+            # 元々の長方形の頂点 (中心が(0,0)にあると仮定)
+            rect_points_orig = np.array([
+                [-box_width_visual/2, -box_height_visual/2], [box_width_visual/2, -box_height_visual/2],
+                [box_width_visual/2, box_height_visual/2], [-box_width_visual/2, box_height_visual/2]
+            ])
+            rotation_matrix = np.array([
+                [math.cos(angle_radians), -math.sin(angle_radians)],
+                [math.sin(angle_radians), math.cos(angle_radians)]
+            ])
+            rect_points_rotated = np.dot(rect_points_orig, rotation_matrix.T)
+            # 回転した長方形を actual_obj_center_x, actual_obj_center_y に平行移動
+            rect_points_translated = rect_points_rotated + np.array([actual_obj_center_x, actual_obj_center_y])
+            
+            obj_patch = plt.Polygon(rect_points_translated, closed=True, fc='skyblue', ec='blue', linewidth=1.5)
+            ax.add_patch(obj_patch)
+
+            # 力のベクトルを actual_obj_center から描画
+            # A. 重力 (mg) - 真下
+            ax.arrow(actual_obj_center_x, actual_obj_center_y, 0, -gravity_magnitude * arrow_scale,
+                     head_width=0.3, head_length=0.4, fc='red', ec='red', length_includes_head=True, label=f"重力 $mg$ ({gravity_magnitude:.1f}N)")
+
+            # B. 垂直抗力 (N) - 斜面に垂直上向き
+            # 始点は物体の底面中心 (近似)
+            contact_point_x = actual_obj_center_x - (box_height_visual/2) * math.sin(angle_radians)
+            contact_point_y = actual_obj_center_y - (box_height_visual/2) * math.cos(angle_radians)
+            ax.arrow(contact_point_x, contact_point_y,
+                     normal_force_magnitude * arrow_scale * math.sin(angle_radians),  # dx
+                     normal_force_magnitude * arrow_scale * math.cos(angle_radians),  # dy
+                     head_width=0.3, head_length=0.4, fc='green', ec='green', length_includes_head=True, label=f"垂直抗力 $N$ ({normal_force_magnitude:.1f}N)")
+
+            # C. 斜面に平行な力 (mg sinθ) - 斜面下向き (物体の中心から)
+            ax.arrow(actual_obj_center_x, actual_obj_center_y,
+                     force_parallel_component * arrow_scale * math.cos(angle_radians),      # dx
+                     force_parallel_component * arrow_scale * math.sin(angle_radians),      # dy
+                     head_width=0.3, head_length=0.4, fc='purple', ec='purple', length_includes_head=True, label=f"斜面方向の力 ({force_parallel_component:.1f}N)")
+
+            # グラフの設定
+            ax.set_xlabel("水平方向")
+            ax.set_ylabel("垂直方向")
+            ax.set_title(f"斜面の角度: {st.session_state.sim_ip_angle:.0f}° における力の分解", fontsize=14)
+            ax.grid(True, linestyle=':', alpha=0.6)
+            ax.set_aspect('equal', adjustable='box')
+
+            # 描画範囲の動的調整 (改善版)
+            all_x_points = [slope_start_x, slope_end_x, actual_obj_center_x]
+            all_y_points = [slope_start_y, slope_end_y, actual_obj_center_y]
+
+            # 矢印の先端も考慮
+            all_x_points.append(actual_obj_center_x + normal_force_magnitude * arrow_scale * math.sin(angle_radians)) # 垂直抗力x
+            all_y_points.append(actual_obj_center_y + normal_force_magnitude * arrow_scale * math.cos(angle_radians)) # 垂直抗力y
+            all_y_points.append(actual_obj_center_y - gravity_magnitude * arrow_scale) # 重力y
+            all_x_points.append(actual_obj_center_x + force_parallel_component * arrow_scale * math.cos(angle_radians)) # 平行力x
+            all_y_points.append(actual_obj_center_y + force_parallel_component * arrow_scale * math.sin(angle_radians)) # 平行力y
+            
+            # 物体のバウンディングボックスも考慮
+            for point in rect_points_translated:
+                all_x_points.append(point[0])
+                all_y_points.append(point[1])
+
+            x_min, x_max = min(all_x_points), max(all_x_points)
+            y_min, y_max = min(all_y_points), max(all_y_points)
+            padding = 1.5 # 描画範囲の余白
+            ax.set_xlim(x_min - padding, x_max + padding)
+            ax.set_ylim(y_min - padding, y_max + padding)
+            
+            ax.legend(loc='lower left', fontsize=10)
+            fig.tight_layout()
+
+
+            st.pyplot(fig)
+            # --- Matplotlib描画ここまで ---
+
+            st.markdown("---")
+            st.subheader("各力の大きさ")
+            col_f1, col_f2, col_f3 = st.columns(3)
+            col_f1.metric("重力 ($mg$)", f"{gravity_magnitude:.2f} N")
+            col_f2.metric("垂直抗力 ($N$)", f"{normal_force_magnitude:.2f} N")
+            col_f3.metric("斜面方向の力 ($mg \sin \\theta$)", f"{force_parallel_component:.2f} N")
+            st.caption(f"（参考: 重力の斜面垂直成分 $mg \cos \\theta = {force_perpendicular_component:.2f}$ N）")
 
 
             st.markdown("---")
             if st.button("シミュレーション選択に戻る", use_container_width=True, key="ip_back_to_sim_select"):
                 st.session_state.sim_selection_stage = "choose_sim_type"
+                st.session_state.ax_ip.clear() # 次回のためにクリア
+                plt.close(st.session_state.fig_ip) # figureも閉じる
+                del st.session_state.fig_ip # セッションからも削除
+                del st.session_state.ax_ip
                 st.rerun()
         st.stop() # 斜面の傾きシミュレーションここまで
     st.stop() # 理科シミュレーション処理全体ここまで
 
+# ...(以降のクイズ用コードは変更なしのため省略)...
 # --- ここから下はクイズ用のコード (変更なし) ---
 # === Google Sheets 連携 (クイズ用) ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
