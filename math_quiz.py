@@ -213,7 +213,16 @@ ENG_QUIZZES_DATA = [
     }
 ]
 
-
+if "quiz_type" not in st.session_state:
+    st.title("学習コンテンツを選んでください") # タイトル変更
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.button("平方根クイズ", on_click=select_quiz, args=("sqrt",))
+    with c2:
+        st.button("中３英語クイズ", on_click=select_quiz, args=("eng",))
+    with c3:
+        st.button("理科シミュレーション", on_click=select_quiz, args=("sci",))
+    st.stop()
 
 
 
