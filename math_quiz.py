@@ -5,6 +5,10 @@ import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np # 斜面の計算で使用
+import matplotlib.pyplot as plt          
+import matplotlib.patches as patches     
+import matplotlib.transforms as mtrans   
+
 
 # === 英語クイズデータ（解説付き） ===
 ENG_QUIZZES_DATA = [
@@ -398,121 +402,93 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
 
     # --- 2. 斜面の傾きと力の分解シミュレーション ---
     elif st.session_state.get("sim_type") == "inclined_plane":
-        if st.session_state.sim_stage == "intro": # "intro"は共通なので流用
-            st.title("斜面の傾きと力の分解シミュレーション")
-            st.markdown("---")
-            st.write("""
-            このシミュレーションでは、斜面におかれた物体にはたらく力を観察します。
-            - 「斜面の角度」をスライダーで変えてみましょう。
-            - 物体にはたらく「重力」、斜面が物体を押す「垂直抗力」、そして重力が斜面に対してどのように分解されるか（「斜面に平行な分力」と「斜面に垂直な分力」）を矢印の長さ（力の大きさ）で見てみましょう。
-            - 角度によって、これらの力の大きさがどう変わるか観察しましょう。
-            """)
-            st.markdown("---")
+    # ============ ここから running 画面 ============ #
+    if st.session_state.sim_stage == "running":
+        # --- スライダーで角度を更新 -----------------------------------
+        angle_deg = st.slider(
+            "斜面の角度を変更 (°)", 0.0, 90.0,
+            st.session_state.sim_ip_angle, 1.0, key="ip_angle_running"
+        )
+        st.session_state.sim_ip_angle = angle_deg
 
-            st.session_state.sim_ip_angle = st.slider(
-                "斜面の角度 (°)", 0.0, 90.0,
-                st.session_state.get("sim_ip_angle", 30.0), 1.0,
-                help="斜面の水平面に対する角度を度単位で設定します。",
-                key="ip_angle_intro"
+        # --- 力の成分計算 --------------------------------------------
+        theta = math.radians(angle_deg)
+        g      = st.session_state.sim_ip_gravity_magnitude       # 9.8 N
+        F_par  = g * math.sin(theta)     # 斜面に平行
+        F_perp = g * math.cos(theta)     # 斜面に垂直 (＝垂直抗力)
+
+        # --- 描画 ----------------------------------------------------
+        def draw_incline(angle_deg: float,
+                         g: float, F_par: float, F_perp: float,
+                         block_size: float = 1.3) -> plt.Figure:
+            """
+            角度と力を受け取り，斜面＋物体＋３つの力ベクトルを作図して返す
+            矢印長さは mg を基準に比例スケール
+            """
+            theta = math.radians(angle_deg)
+            L     = 6.0                 # 斜面の長さ（図中尺度）
+            scale = 1.7 / g             # mg → 1.7 [図単位] になるようスケール
+
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.set_aspect("equal")
+            ax.axis("off")
+
+            # 斜面
+            x2, y2 = L * math.cos(theta), L * math.sin(theta)
+            ax.plot([0, x2], [0, y2], lw=3, color="navy")
+
+            # 物体（回転付き矩形）
+            cx, cy = 2*math.cos(theta), 2*math.sin(theta)   # 斜面途中に配置
+            trans  = (
+                mtrans.Affine2D()
+                .rotate_deg(angle_deg)
+                .translate(cx, cy)
+                + ax.transData
             )
-            
-            # このシミュレーションはステップ実行やアニメーションはせず、角度変更で即時反映
-            # なので、「開始」ボタンは不要で、スライダー変更が即座に下の表示に影響する
-            st.session_state.sim_stage = "running" # 自動的に表示ステージへ
-            st.rerun() # スライダーの値を即座に反映させるため
-
-        elif st.session_state.sim_stage == "running": # 表示ステージ
-            st.title("斜面の傾きと力の分解 観察中 📐")
-            st.markdown("---")
-
-            angle_degrees = st.slider(
-                "斜面の角度を変更 (°)", 0.0, 90.0,
-                st.session_state.sim_ip_angle, 1.0,
-                key="ip_angle_running"
+            rect = patches.Rectangle(
+                (-block_size/2, -block_size/2), block_size, block_size,
+                facecolor="#16c0ff", edgecolor="k", transform=trans, zorder=3
             )
-            if angle_degrees != st.session_state.sim_ip_angle:
-                st.session_state.sim_ip_angle = angle_degrees
-                # st.rerun() # スライダーのon_changeを使うか、このままでもStreamlitが再実行する
+            ax.add_patch(rect)
 
-            angle_radians = math.radians(st.session_state.sim_ip_angle)
-            gravity = st.session_state.sim_ip_gravity_magnitude # 例: 9.8 N
+            # ---- 力ベクトル（赤矢印） ----
+            head_w = 0.12                        # 矢印太さ
+            # 1) 重力 mg（真下）
+            ax.arrow(cx, cy, 0, -g*scale,
+                     width=head_w, color="red", length_includes_head=True)
+            # 2) 斜面に平行（下向き）
+            ax.arrow(cx, cy,
+                     -math.cos(theta)*F_par*scale,
+                     -math.sin(theta)*F_par*scale,
+                     width=head_w, color="red", length_includes_head=True)
+            # 3) 斜面に垂直（外向き）
+            ax.arrow(cx, cy,
+                     -math.sin(theta)*F_perp*scale,
+                      math.cos(theta)*F_perp*scale,
+                     width=head_w, color="red", length_includes_head=True)
 
-            # 力の成分計算
-            force_parallel = gravity * math.sin(angle_radians) # 斜面に平行な成分
-            force_perpendicular_to_slope = gravity * math.cos(angle_radians) # 斜面に垂直な成分
-            normal_force = force_perpendicular_to_slope # 垂直抗力
+            # 描画範囲
+            ax.set_xlim(-1, L+1)
+            ax.set_ylim(-1, L*math.sin(theta)+2)
+            return fig
 
-            st.info(f"斜面の角度: {st.session_state.sim_ip_angle:.1f}°")
-            st.markdown("---")
-            st.subheader("力の可視化（矢印の長さで力の大きさを表現）")
+        fig = draw_incline(angle_deg, g, F_par, F_perp)
+        st.pyplot(fig)
 
-            # 簡易的な力の可視化 (値とテキスト)
-            max_arrow_length = 20 # 表示上の矢印の最大長
+        # --- 数値も残したい場合 ---------------------------------------
+        st.markdown("---")
+        st.info(
+            f"**角度 θ = {angle_deg:.1f}°**  ｜  "
+            f"$mg\\sinθ$ (平行)= {F_par:.2f} N  ｜  "
+            f"$mg\\cosθ$ (垂直)= {F_perp:.2f} N"
+        )
 
-            def get_arrow_bar(force_value, total_gravity, symbol):
-                if total_gravity == 0: return symbol # total_gravityが0なら比率計算不可
-                length = int(round((abs(force_value) / total_gravity) * max_arrow_length))
-                return symbol * length
+        # --- 戻るボタン ----------------------------------------------
+        if st.button("シミュレーション選択に戻る", use_container_width=True,
+                     key="ip_back_to_sim_select"):
+            st.session_state.sim_selection_stage = "choose_sim_type"
+            st.rerun()
 
-            gravity_bar = get_arrow_bar(gravity, gravity, "⬇️")
-            normal_force_bar = get_arrow_bar(normal_force, gravity, "⬆️") # 向きは概念
-            parallel_force_bar = get_arrow_bar(force_parallel, gravity, "↘️") # 向きは概念
-
-            st.write(f"**重力 ($mg$)**: {gravity:.2f} N")
-            st.markdown(f"<pre>{gravity_bar} (真下)</pre>", unsafe_allow_html=True)
-
-            st.write(f"**斜面に垂直な分力 ($mg \cos \\theta$)**: {force_perpendicular_to_slope:.2f} N")
-            # 垂直抗力はこの分力と釣り合う
-            st.write(f"**垂直抗力 ($N$)**: {normal_force:.2f} N")
-            st.markdown(f"<pre>{normal_force_bar} (斜面から垂直上向き)</pre>", unsafe_allow_html=True)
-            
-            st.write(f"**斜面に平行な分力 ($mg \sin \\theta$)**: {force_parallel:.2f} N")
-            st.markdown(f"<pre>{parallel_force_bar} (斜面下向き)</pre>", unsafe_allow_html=True)
-
-            # 簡易的な斜面と台車の図 (テキストアート)
-            st.markdown("---")
-            st.write("【簡易図】")
-            slope_char = "/" if st.session_state.sim_ip_angle > 0 else "─"
-            padding = " " * int(st.session_state.sim_ip_angle / 6) # 角度に応じて少しずらす
-            
-            # 描画領域を確保する（高さは固定、幅は角度による）
-            # 簡易図なので、正確な描画は難しい
-            if st.session_state.sim_ip_angle == 0:
-                 diagram_html = f"""
-<pre style="font-size: 16px; line-height: 1.0;">
-{padding}      🚗
-{padding}  {slope_char * 15}
-</pre>
-"""
-            elif st.session_state.sim_ip_angle == 90:
-                diagram_html = f"""
-<pre style="font-size: 16px; line-height: 1.0;">
-{padding}      │
-{padding}      │🚗
-{padding}      │
-{padding}      │
-{padding}      . (地面)
-</pre>
-"""
-            else:
-                # 簡単な表現
-                spaces_before_car = " " * (5 - int(angle_radians * 2))
-                slope_line = "".join([ " " * i + slope_char for i in range(5)])
-
-                diagram_html = f"""
-<pre style="font-size: 16px; line-height: 1.0;">
-{padding}{spaces_before_car}🚗
-{padding}{slope_line}
-</pre>
-"""
-            st.markdown(diagram_html, unsafe_allow_html=True)
-            st.caption(f"角度 {st.session_state.sim_ip_angle:.0f}° の斜面のイメージ")
-
-
-            st.markdown("---")
-            if st.button("シミュレーション選択に戻る", use_container_width=True, key="ip_back_to_sim_select"):
-                st.session_state.sim_selection_stage = "choose_sim_type"
-                st.rerun()
         st.stop() # 斜面の傾きシミュレーションここまで
     st.stop() # 理科シミュレーション処理全体ここまで
 
