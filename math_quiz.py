@@ -456,11 +456,11 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
                 ax.set_aspect("equal")
                 ax.axis("off")
 
-                # 斜面
+                # ==== 斜面（線を細く）=================================
                 x2, y2 = L*math.cos(theta), L*math.sin(theta)
-                ax.plot([0, x2], [0, y2], lw=3, color="navy")
+                ax.plot([0, x2], [0, y2], lw=1.6, color="navy", zorder=1)
 
-                # 物体
+                # ==== 物体（枠線も細く）===============================
                 cx, cy = 2*math.cos(theta), 2*math.sin(theta)
                 trans  = (
                     mtrans.Affine2D()
@@ -469,31 +469,38 @@ if st.session_state.get("content_type_selected") == "sci_sim" and \
                 )
                 rect = patches.Rectangle(
                     (-0.65, -0.65), 1.3, 1.3,
-                    facecolor="#16c0ff", edgecolor="k",
-                    transform=trans, zorder=3
+                    facecolor="#16c0ff", edgecolor="k", linewidth=1.2,
+                    transform=trans, zorder=2
                 )
                 ax.add_patch(rect)
 
-                # 力ベクトル（赤）
-                head_w = 0.12
-                # ① 重力
+                # ==== 力ベクトル（zorder を最大に）====================
+                head_w, z_arrow = 0.12, 5
+                # ① 重力 mg
                 ax.arrow(cx, cy, 0, -g*scale,
                          width=head_w, color="red",
-                         length_includes_head=True)
+                         length_includes_head=True, zorder=z_arrow)
                 # ② 平行成分
                 ax.arrow(cx, cy,
                          -math.cos(theta)*F_para*scale,
                          -math.sin(theta)*F_para*scale,
                          width=head_w, color="red",
-                         length_includes_head=True)
+                         length_includes_head=True, zorder=z_arrow)
                 # ③ 垂直成分（外向き）
                 ax.arrow(cx, cy,
                          -math.sin(theta)*F_perp*scale,
                           math.cos(theta)*F_perp*scale,
                          width=head_w, color="red",
-                         length_includes_head=True)
+                         length_includes_head=True, zorder=z_arrow)
 
-                # 描画範囲
+                # ==== 角度ラベル（図内リアルタイム表示）===============
+                ax.text(
+                    0.05, 0.95, rf"$\theta = {theta_deg:.1f}^\circ$",
+                    transform=ax.transAxes, ha="left", va="top",
+                    fontsize=13, fontweight="bold"
+                )
+
+                # ==== 描画範囲 ========================================
                 ax.set_xlim(-1, L+1)
                 ax.set_ylim(-1, L*math.sin(theta)+2)
                 return fig
