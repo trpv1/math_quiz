@@ -242,38 +242,34 @@ if "quiz_type" not in st.session_state:
 # --- 理科シミュレーション処理 ---
 if st.session_state.get("quiz_type") == "sci":
     if "sim_stage" not in st.session_state:  # 念のための初期化
-        select_quiz("sci")  # 初期化関数を呼び出す
-
-    # アニメーションの速度調整用
-    # time.sleep(0.1) # 0.1秒待つ (値が大きいほどゆっくりになる)
+        select_quiz("sci")  # 初期化関数を呼び出す (sim_internal_massなどもここで設定される)
 
     if st.session_state.sim_stage == "intro":
-        st.title("力と運動のふしぎ発見！シミュレーション 🚗💨")
+        st.title("力の運動シミュレーション: ニュートンの法則を探る")
         st.markdown("---")
         st.write("""
-        このシミュレーションでは、物体に力を加えたときに、物体の速さがどのように変わるかを見てみよう！
-        - **「加える力」の大きさ** をスライダーで選んでね。
-        - **「スタート！」ボタン** を押すと、選んだ力で物体が動き出すよ。
-        - 力が大きいほど、物体の速さはどう変わるかな？観察してみよう！
-        - **0 N（ニュートン）** の力は、力を加えていない状態のことだよ。
+        このシミュレーションでは、物体に加える力と、それによる物体の運動（速度や位置の変化）の関係を視覚的に探求します。
+        - 「物体に加える力 (F)」の大きさを下のスライダーで設定してください。
+        - 「シミュレーション開始」ボタンを押すと、設定した力で物体が運動を開始します。
+        - 運動の様子や、力の大きさが物体の加速にどのように影響するかを観察しましょう。
+        - （このシミュレーションでは、物体の質量は一定であると仮定しています。）
         """)
         st.markdown("---")
 
-        # 設定値の入力（質量は固定または非表示とし、力のみを設定）
-        # 内部的に質量を1kgとして扱うことで、力と加速度の値を一致させる
-        st.session_state.sim_internal_mass = 1.0 # 内部的な質量を1kgに固定
+        # 設定値の入力
+        st.session_state.sim_internal_mass = 1.0 # 内部的な質量を1kgに固定 (変更不可)
         st.session_state.sim_force = st.slider(
-            "物体に加える力（大きいほど強く押すイメージ！）💪",
-            -2.0,  # マイナスの力（逆向きに押す）も体験できるように
-            2.0,
-            st.session_state.get("sim_force", 0.0),
-            0.1, # 力の刻み幅
-            help="プラスの力は右向き、マイナスの力は左向きに物体を押します。"
+            "物体に加える力 (N)",
+            0.0,  # 最小値 (負の力はなし)
+            2.0,  # 最大値
+            st.session_state.get("sim_force", 0.0), # 前回値またはデフォルト0.0N
+            0.1,  # ステップ
+            help="物体に加える力の大きさをニュートン(N)単位で設定します。0Nは力を加えていない状態です。"
         )
 
         col_sim_buttons1, col_sim_buttons2 = st.columns(2)
         with col_sim_buttons1:
-            if st.button("シミュレーション スタート！🚀", use_container_width=True):
+            if st.button("シミュレーション開始/リセット 🔄", use_container_width=True):
                 st.session_state.sim_stage = "running"
                 st.session_state.sim_time = 0.0
                 st.session_state.sim_velocity = 0.0 # 初速は0
@@ -287,21 +283,35 @@ if st.session_state.get("quiz_type") == "sci":
                 del st.session_state.quiz_type
                 keys_to_delete = [k for k in st.session_state if k.startswith("sim_")]
                 for key in keys_to_delete:
-                    if key in st.session_state: # キーの存在確認
+                    if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
 
     elif st.session_state.sim_stage == "running":
-        st.title("シミュレーション実行中！ 観察しよう👀")
+        st.title("シミュレーション実行中 ⚙️")
         st.markdown("---")
 
-        st.write(f"設定した力： $F = {st.session_state.sim_force:.1f}$ N")
-        # 中学生向けには加速度という言葉を直接使わず、「力の効果」として速度変化を見せる
-        # st.write(f"物体の加速度（速さの変化の割合）： $a = {st.session_state.sim_acceleration:.1f}$ m/s²")
+        # シミュレーション中に力を変更できるスライダー
+        new_force_on_run = st.slider(
+            "加える力を変更 (N)",
+            0.0,  # 最小値
+            2.0,  # 最大値
+            st.session_state.sim_force, # 現在の力を初期値に
+            0.1,  # ステップ
+            key="force_slider_running", # introのスライダーと区別するキー
+            help="シミュレーション中に力を変更できます。変更は即座に加速度に反映されます。"
+        )
 
-        delta_t = 0.1  # 時間ステップを短くして、より滑らかなアニメーションを目指す
+        # スライダーの値が実際に変更されたか確認し、力と加速度を更新
+        if new_force_on_run != st.session_state.sim_force:
+            st.session_state.sim_force = new_force_on_run
+            st.session_state.sim_acceleration = st.session_state.sim_force / st.session_state.sim_internal_mass
+            # st.rerun() # アニメーションループのrerunに任せる
 
-        # アニメーション制御ボタン
+        st.info(f"現在の力: $F = {st.session_state.sim_force:.1f}$ N  |  現在の加速度: $a = {st.session_state.sim_acceleration:.2f}$ m/s² (質量1kgの場合)")
+
+        delta_t = 0.1  # 時間ステップ（アニメーションの細かさ）
+
         sim_active = st.session_state.get("sim_running_active", False)
         button_label = "一時停止 ⏸️" if sim_active else "再生 ▶️"
         
@@ -309,106 +319,54 @@ if st.session_state.get("quiz_type") == "sci":
         with col_anim_ctrl1:
             if st.button(button_label, use_container_width=True):
                 st.session_state.sim_running_active = not sim_active
-                st.rerun() # ボタンのラベルを更新するために再実行
+                st.rerun()
         with col_anim_ctrl2:
-            if st.button("リセット 🔄", use_container_width=True):
-                # 設定画面に戻りつつ値を保持
+            if st.button("初期設定に戻る ↩️", use_container_width=True): # ラベル変更
                 st.session_state.sim_stage = "intro"
-                # sim_force はintro画面のスライダーで再設定されるのでここではクリアしない
-                # sim_time などは intro 画面で スタート時にリセットされる
                 st.session_state.sim_running_active = False
+                # sim_force は intro 画面のスライダーで保持される
                 st.rerun()
         with col_anim_ctrl3:
              if st.button("ホームに戻る 🏠", use_container_width=True):
                 del st.session_state.quiz_type
                 keys_to_delete = [k for k in st.session_state if k.startswith("sim_")]
                 for key in keys_to_delete:
-                    if key in st.session_state: # キーの存在確認
+                    if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
 
-
         if sim_active:
             prev_velocity = st.session_state.sim_velocity
-            # 速度 v = v0 + a*Δt
             st.session_state.sim_velocity += st.session_state.sim_acceleration * delta_t
-            # 位置 x = x0 + v0*Δt（簡易版）または x = x0 + v0*Δt + 0.5*a*(Δt)^2（より正確）
-            # ここではより物理的に近い動きのため後者を採用
             st.session_state.sim_position += prev_velocity * delta_t + 0.5 * st.session_state.sim_acceleration * (delta_t ** 2)
             st.session_state.sim_time += delta_t
-
 
         st.markdown("---")
         st.subheader("シミュレーション結果")
 
         col1, col2, col3 = st.columns(3)
         col1.metric("経過時間 (秒)", f"{st.session_state.sim_time:.1f}")
-        col2.metric("今の速さ (m/s)", f"{st.session_state.sim_velocity:.2f}")
-        col3.metric("進んだ距離 (m)", f"{st.session_state.sim_position:.2f}")
+        col2.metric("現在の速度 (m/s)", f"{st.session_state.sim_velocity:.2f}")
+        col3.metric("現在の位置 (m)", f"{st.session_state.sim_position:.2f}")
 
-        # 位置の簡易的な可視化（よりアニメーション風に）
-        # Streamlitのst.progressバーを位置表示に使う
-        # 表示範囲を-20mから20mと仮定
-        display_range_min = -10.0
-        display_range_max = 10.0
-        current_pos_normalized = (st.session_state.sim_position - display_range_min) / (display_range_max - display_range_min)
-        current_pos_normalized = max(0.0, min(1.0, current_pos_normalized)) # 0から1の範囲に収める
-
-        # 進捗バーのテキストを工夫して車の位置を示す
-        # progress_text = f"位置: {st.session_state.sim_position:.1f} m"
-        # st.progress(current_pos_normalized, text=progress_text)
-
-        # または、より直接的なテキストベースの可視化
-        # "🚗" の位置を計算
-        # 表示幅（文字数）
-        track_length = 60  # 例えば60文字分の線路
-        # 位置をトラック長に合わせて正規化し、インデックスを計算
-        # -10m がインデックス0, +10m がインデックス track_length-1 になるようにする
-        # (pos - min_pos) / (max_pos - min_pos) * (track_length -1)
-        car_idx_float = (st.session_state.sim_position - display_range_min) / (display_range_max - display_range_min) * (track_length - 1)
-        car_idx = int(round(car_idx_float))
-        car_idx = max(0, min(track_length - 1, car_idx)) # 範囲内に収める
-
-        track = ["─"] * track_length
-        if 0 <= car_idx < track_length:
-            track[car_idx] = "🚗"
+        # 位置の簡易的な可視化 (0mから右方向)
+        st.write("物体の位置 (0m から右方向に進みます):")
+        max_display_length = 60  # 表示上のバーの最大長 (文字数)
+        # 位置を整数に丸めてバーの長さを決定（小数点以下はバーの長さに影響させない）
+        current_pos_for_bar = int(round(st.session_state.sim_position))
         
-        # 0m地点のマーカー
-        zero_idx_float = (0.0 - display_range_min) / (display_range_max - display_range_min) * (track_length - 1)
-        zero_idx = int(round(zero_idx_float))
-
-        display_track = "".join(track)
+        bar_length = min(max(0, current_pos_for_bar), max_display_length)
+        bar = "─" * bar_length + "🚗"
         
-        # 0m地点のマーカーをトラックの下に表示
-        ruler_parts = []
-        scale_step = track_length // 4 # 4分割する目安
-        for i in range(track_length):
-            if i == zero_idx:
-                ruler_parts.append("|") # 0m
-            elif i == int(round((display_range_min/2 - display_range_min) / (display_range_max - display_range_min) * (track_length -1))): # -5m
-                 ruler_parts.append("←-5m")
-            elif i == int(round((display_range_max/2 - display_range_min) / (display_range_max - display_range_min) * (track_length -1))): # +5m
-                 ruler_parts.append("+5m→")
-            elif i % scale_step == 0 and i != zero_idx :
-                 ruler_parts.append("･")
-            else:
-                ruler_parts.append(" ")
-        ruler = "".join(ruler_parts)
-        
-        # スタイリングを適用して表示
-        st.markdown(f"""
-        <div style="font-family: monospace; white-space: pre; line-height: 1.2;">
-        {display_track}
-        {ruler}
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption(f"表示範囲: {display_range_min:.0f}m から {display_range_max:.0f}m まで")
+        display_line = f"0m |{bar}" 
+        st.markdown(f"<pre style='overflow-x: auto; white-space: pre;'>{display_line}</pre>", unsafe_allow_html=True)
+        if current_pos_for_bar > max_display_length:
+            st.caption(f"表示範囲 ({max_display_length}m) を超えました (現在位置: {st.session_state.sim_position:.1f}m)")
 
 
         st.markdown("---")
-        # 自動更新のための rerun
         if sim_active:
-            time.sleep(0.05) # 更新間隔（アニメーションの滑らかさ）
+            time.sleep(0.03) # 更新間隔を少し短くして滑らかに (PCの負荷に応じて調整)
             st.rerun()
 
     st.stop()
